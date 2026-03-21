@@ -43,6 +43,13 @@ return [
         'base_url' => env('POINTWAVE_BASE_URL', 'https://api.pointwave.ng'),
     ],
 
+    'fez' => [
+        'user_id' => env('FEZ_USER_ID'),
+        'password' => env('FEZ_PASSWORD'),
+        'secret_key' => env('FEZ_SECRET_KEY'),
+        'environment' => env('FEZ_ENVIRONMENT', 'sandbox'),
+    ],
+
     'sudo' => [
         'api_key' => env('SUDO_API_KEY'),
         'vault_id' => env('SUDO_VAULT_ID', 'we0dsa28svdl2xefo5'),

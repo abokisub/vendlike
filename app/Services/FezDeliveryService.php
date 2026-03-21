@@ -14,13 +14,13 @@ class FezDeliveryService
 
     public function __construct()
     {
-        $env = config('services.fez.environment', env('FEZ_ENVIRONMENT', 'sandbox'));
+        $env = config('services.fez.environment', 'sandbox');
         $this->baseUrl = $env === 'production'
             ? 'https://api.fezdelivery.co/v1'
             : 'https://apisandbox.fezdelivery.co/v1';
-        $this->userId = env('FEZ_USER_ID', '');
-        $this->password = env('FEZ_PASSWORD', '');
-        $this->secretKey = env('FEZ_SECRET_KEY', '');
+        $this->userId = config('services.fez.user_id', '');
+        $this->password = config('services.fez.password', '');
+        $this->secretKey = config('services.fez.secret_key', '');
     }
 
     /**
