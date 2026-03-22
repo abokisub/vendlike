@@ -9,16 +9,18 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('marketplace_vendors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('business_name')->nullable();
-            $table->string('phone')->nullable();
-            $table->string('email')->nullable();
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('marketplace_vendors')) {
+            Schema::create('marketplace_vendors', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('business_name')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('email')->nullable();
+                $table->text('description')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+            });
+        }
 
         // Add vendor_id without FK constraint to avoid engine compatibility issues
         if (!Schema::hasColumn('marketplace_products', 'vendor_id')) {
