@@ -1273,6 +1273,11 @@ class SecureController extends Controller
                             'habukhan5' => $request->habukhan5,
                             'vtpass' => $request->vtpass,
                             'autopilot' => $request->autopilot,
+                            'adex1' => $request->adex1,
+                            'adex2' => $request->adex2,
+                            'adex3' => $request->adex3,
+                            'adex4' => $request->adex4,
+                            'adex5' => $request->adex5,
                             'added_by' => $added_by
                         ];
                         if (DB::table('cable_plan')->where('plan_id', $plan_id)->count() == 0) {
@@ -1372,7 +1377,12 @@ class SecureController extends Controller
                             'habukhan4' => $request->habukhan4,
                             'habukhan5' => $request->habukhan5,
                             'vtpass' => $request->vtpass,
-                            'autopilot' => $request->autopilot
+                            'autopilot' => $request->autopilot,
+                            'adex1' => $request->adex1,
+                            'adex2' => $request->adex2,
+                            'adex3' => $request->adex3,
+                            'adex4' => $request->adex4,
+                            'adex5' => $request->adex5,
                         ];
                         $updated = DB::table('cable_plan')->where('plan_id', $request->plan_id)->update($data);
                         if ($updated || $updated === 0) {
@@ -1571,6 +1581,11 @@ class SecureController extends Controller
                             'habukhan4' => $request->habukhan4,
                             'habukhan5' => $request->habukhan5,
                             'vtpass' => $request->vtpass,
+                            'adex1' => $request->adex1,
+                            'adex2' => $request->adex2,
+                            'adex3' => $request->adex3,
+                            'adex4' => $request->adex4,
+                            'adex5' => $request->adex5,
                             'added_by' => $added_by
                         ];
                         if (DB::table('bill_plan')->where('plan_id', $plan_id)->count() == 0) {
@@ -1660,6 +1675,11 @@ class SecureController extends Controller
                             'habukhan4' => $request->habukhan4,
                             'habukhan5' => $request->habukhan5,
                             'vtpass' => $request->vtpass,
+                            'adex1' => $request->adex1,
+                            'adex2' => $request->adex2,
+                            'adex3' => $request->adex3,
+                            'adex4' => $request->adex4,
+                            'adex5' => $request->adex5,
                             'added_by' => $added_by
                         ];
                         if (DB::table('bill_plan')->where('plan_id', $request->plan_id)->count() == 1) {

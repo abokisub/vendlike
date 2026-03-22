@@ -9,7 +9,7 @@ class MarketplaceProduct extends Model
     protected $table = 'marketplace_products';
 
     protected $fillable = [
-        'category_id', 'name', 'slug', 'description', 'price', 'discount_price',
+        'category_id', 'vendor_id', 'name', 'slug', 'description', 'price', 'discount_price',
         'stock', 'weight', 'images', 'sizes', 'colors', 'is_active', 'is_featured', 'sort_order',
     ];
 
@@ -27,6 +27,11 @@ class MarketplaceProduct extends Model
     public function category()
     {
         return $this->belongsTo(MarketplaceCategory::class, 'category_id');
+    }
+
+    public function vendor()
+    {
+        return $this->belongsTo(MarketplaceVendor::class, 'vendor_id');
     }
 
     public function getEffectivePriceAttribute()

@@ -683,6 +683,12 @@ Route::post('admin/marketplace/orders/{orderId}/verify-payment/{id}/secure', [Ap
 Route::get('admin/marketplace/settings/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetSettings']);
 Route::post('admin/marketplace/settings/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminUpdateSettings']);
 
+// Vendor routes
+Route::get('admin/marketplace/vendors/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetVendors']);
+Route::post('admin/marketplace/vendors/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminCreateVendor']);
+Route::post('admin/marketplace/vendors/{vendorId}/update/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminUpdateVendor']);
+Route::delete('admin/marketplace/vendors/{vendorId}/delete/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminDeleteVendor']);
+
 
 // ─── JAMB PIN VENDING ───
 

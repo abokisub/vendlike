@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\MarketplaceCategory;
+use App\Models\MarketplaceVendor;
 use App\Models\MarketplaceProduct;
 use App\Models\MarketplaceOrder;
 use App\Models\MarketplaceOrderItem;
@@ -149,7 +150,7 @@ class MarketplaceController extends Controller
             return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
         }
 
-        $query = MarketplaceProduct::with('category');
+        $query = MarketplaceProduct::with(['category', 'vendor']);
 
         if ($request->category_id) {
             $query->where('category_id', $request->category_id);
@@ -211,6 +212,7 @@ class MarketplaceController extends Controller
 
         $product = MarketplaceProduct::create([
             'category_id' => $request->category_id,
+            'vendor_id' => $request->vendor_id ?: null,
             'name' => $request->name,
             'slug' => $slug,
             'description' => $request->description,
@@ -226,7 +228,7 @@ class MarketplaceController extends Controller
             'sort_order' => $request->sort_order ?? 0,
         ]);
 
-        $product->load('category');
+        $product->load(['category', 'vendor']);
         $product->image_urls = $product->image_urls;
 
         return response()->json(['status' => 'success', 'message' => 'Product created', 'data' => $product]);
@@ -263,6 +265,7 @@ class MarketplaceController extends Controller
 
         if ($request->has('name')) $product->name = $request->name;
         if ($request->has('category_id')) $product->category_id = $request->category_id;
+        if ($request->has('vendor_id')) $product->vendor_id = $request->vendor_id ?: null;
         if ($request->has('description')) $product->description = $request->description;
         if ($request->has('price')) $product->price = $request->price;
         if ($request->has('discount_price')) $product->discount_price = $request->discount_price;
@@ -297,7 +300,7 @@ class MarketplaceController extends Controller
         }
 
         $product->save();
-        $product->load('category');
+        $product->load(['category', 'vendor']);
         $product->image_urls = $product->image_urls;
 
         return response()->json(['status' => 'success', 'message' => 'Product updated', 'data' => $product]);
@@ -510,6 +513,86 @@ class MarketplaceController extends Controller
                 'data' => ['monnify_status' => $monnifyStatus],
             ], 400);
         }
+    }
+
+    // ─── ADMIN: VENDORS ───
+
+    public function adminGetVendors(Request $request)
+    {
+        $token = $request->token ?? $request->route('id');
+        $verified_id = $this->verifytoken($token);
+        if (!$verified_id || !$this->isAdmin($verified_id)) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+        $vendors = MarketplaceVendor::withCount('products')->orderBy('name')->get();
+        return response()->json(['status' => 'success', 'data' => $vendors]);
+    }
+
+    public function adminCreateVendor(Request $request)
+    {
+        $token = $request->token ?? $request->route('id');
+        $verified_id = $this->verifytoken($token);
+        if (!$verified_id || !$this->isAdmin($verified_id)) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:100',
+            'business_name' => 'nullable|string|max:150',
+            'phone' => 'nullable|string|max:20',
+            'email' => 'nullable|email|max:100',
+            'description' => 'nullable|string|max:500',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['status' => 'fail', 'message' => $validator->errors()->first()], 400);
+        }
+        $vendor = MarketplaceVendor::create([
+            'name' => $request->name,
+            'business_name' => $request->business_name,
+            'phone' => $request->phone,
+            'email' => $request->email,
+            'description' => $request->description,
+            'is_active' => true,
+        ]);
+        return response()->json(['status' => 'success', 'message' => 'Vendor created', 'data' => $vendor]);
+    }
+
+    public function adminUpdateVendor(Request $request, $id)
+    {
+        $token = $request->route('id') ?? $request->query('token');
+        $verified_id = $this->verifytoken($token);
+        if (!$verified_id || !$this->isAdmin($verified_id)) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+        $vendorId = $request->route('vendorId') ?? $id;
+        $vendor = MarketplaceVendor::find($vendorId);
+        if (!$vendor) {
+            return response()->json(['status' => 'fail', 'message' => 'Vendor not found'], 404);
+        }
+        if ($request->has('name')) $vendor->name = $request->name;
+        if ($request->has('business_name')) $vendor->business_name = $request->business_name;
+        if ($request->has('phone')) $vendor->phone = $request->phone;
+        if ($request->has('email')) $vendor->email = $request->email;
+        if ($request->has('description')) $vendor->description = $request->description;
+        if ($request->has('is_active')) $vendor->is_active = (bool) $request->is_active;
+        $vendor->save();
+        return response()->json(['status' => 'success', 'message' => 'Vendor updated', 'data' => $vendor]);
+    }
+
+    public function adminDeleteVendor(Request $request, $id)
+    {
+        $token = $request->route('id') ?? $request->query('token');
+        $verified_id = $this->verifytoken($token);
+        if (!$verified_id || !$this->isAdmin($verified_id)) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+        $vendorId = $request->route('vendorId') ?? $id;
+        $vendor = MarketplaceVendor::find($vendorId);
+        if (!$vendor) {
+            return response()->json(['status' => 'fail', 'message' => 'Vendor not found'], 404);
+        }
+        // Unlink products (vendor_id set null via FK onDelete set null)
+        $vendor->delete();
+        return response()->json(['status' => 'success', 'message' => 'Vendor deleted']);
     }
 
     // ─── ADMIN: SETTINGS ───
