@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -19,18 +20,17 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::table('marketplace_products', function (Blueprint $table) {
-            $table->unsignedBigInteger('vendor_id')->nullable()->after('category_id');
-            $table->foreign('vendor_id')->references('id')->on('marketplace_vendors')->onDelete('set null');
-        });
+        // Add vendor_id without FK constraint to avoid engine compatibility issues
+        if (!Schema::hasColumn('marketplace_products', 'vendor_id')) {
+            DB::statement('ALTER TABLE marketplace_products ADD COLUMN vendor_id BIGINT UNSIGNED NULL AFTER category_id');
+        }
     }
 
     public function down()
     {
-        Schema::table('marketplace_products', function (Blueprint $table) {
-            $table->dropForeign(['vendor_id']);
-            $table->dropColumn('vendor_id');
-        });
+        if (Schema::hasColumn('marketplace_products', 'vendor_id')) {
+            DB::statement('ALTER TABLE marketplace_products DROP COLUMN vendor_id');
+        }
         Schema::dropIfExists('marketplace_vendors');
     }
 };
