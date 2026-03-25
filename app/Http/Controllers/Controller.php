@@ -286,6 +286,28 @@ class Controller extends BaseController
                         \Log::info("Xixapay SYNC: Full response for $username", ['data' => $data]);
                         $updateData = [];
 
+                        // If bankAccounts is empty, customer already exists — retry with customer_id
+                        if (isset($data['customer']['customer_id']) && empty($data['bankAccounts'])) {
+                            \Log::info("Xixapay SYNC: Empty bankAccounts, retrying with customer_id for $username");
+                            $retryPayload = [
+                                'customer_id' => $data['customer']['customer_id'],
+                                'bankCode' => $bankCodes,
+                                'accountType' => 'static',
+                                'businessId' => $xixa['business_id']
+                            ];
+                            $retryResponse = Http::timeout(25)->withHeaders([
+                                'Authorization' => $xixa['authorization'],
+                                'api-key' => $xixa['api_key']
+                            ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $retryPayload);
+                            if ($retryResponse->successful()) {
+                                $retryData = $retryResponse->json();
+                                \Log::info("Xixapay SYNC: Retry response for $username", ['data' => $retryData]);
+                                if (!empty($retryData['bankAccounts'])) {
+                                    $data = $retryData;
+                                }
+                            }
+                        }
+
                         if (isset($data['bankAccounts'])) {
                             foreach ($data['bankAccounts'] as $bank) {
                                 \Log::info("Xixapay SYNC: Bank account received", ['bankCode' => $bank['bankCode'], 'accountNumber' => $bank['accountNumber'] ?? 'N/A']);
