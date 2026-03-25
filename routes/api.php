@@ -667,6 +667,7 @@ Route::prefix('marketplace')->group(function () {
 // Marketplace Payment Callbacks (no auth — Monnify redirects here)
 Route::get('marketplace/payment/callback', [App\Http\Controllers\API\MarketplaceController::class, 'paymentCallback']);
 Route::post('marketplace/webhook/monnify', [App\Http\Controllers\API\MarketplaceController::class, 'monnifyWebhook']);
+Route::post('marketplace/webhook/xixapay', [App\Http\Controllers\API\MarketplaceController::class, 'xixapayWebhook']);
 
 // Admin Marketplace Routes
 Route::get('admin/marketplace/categories/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetCategories']);

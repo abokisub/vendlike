@@ -613,6 +613,7 @@ class MarketplaceController extends Controller
                 'marketplace_status' => (int) ($settings->marketplace_status ?? 1),
                 'marketplace_delivery_fee' => (float) ($settings->marketplace_delivery_fee ?? 0),
                 'marketplace_delivery_mode' => $settings->marketplace_delivery_mode ?? 'self',
+                'marketplace_payment_provider' => $settings->marketplace_payment_provider ?? 'xixapay',
             ],
         ]);
     }
@@ -629,6 +630,9 @@ class MarketplaceController extends Controller
         if ($request->has('marketplace_status')) $updates['marketplace_status'] = (int) $request->marketplace_status;
         if ($request->has('marketplace_delivery_fee')) $updates['marketplace_delivery_fee'] = (float) $request->marketplace_delivery_fee;
         if ($request->has('marketplace_delivery_mode')) $updates['marketplace_delivery_mode'] = $request->marketplace_delivery_mode;
+        if ($request->has('marketplace_payment_provider') && in_array($request->marketplace_payment_provider, ['xixapay', 'monnify'])) {
+            $updates['marketplace_payment_provider'] = $request->marketplace_payment_provider;
+        }
 
         if (!empty($updates)) {
             DB::table('settings')->update($updates);
@@ -858,6 +862,7 @@ class MarketplaceController extends Controller
             DB::beginTransaction();
 
             // Create order with payment_status = pending (no wallet debit)
+            $paymentProvider = DB::table('settings')->value('marketplace_payment_provider') ?? 'xixapay';
             $order = MarketplaceOrder::create([
                 'user_id' => $user_id,
                 'reference' => $reference,
@@ -866,7 +871,7 @@ class MarketplaceController extends Controller
                 'grand_total' => $grandTotal,
                 'status' => 'pending',
                 'payment_status' => 'pending',
-                'payment_method' => 'monnify',
+                'payment_method' => $paymentProvider,
                 'delivery_name' => $request->delivery_name,
                 'delivery_phone' => $request->delivery_phone,
                 'delivery_address' => $request->delivery_address,
@@ -895,7 +900,61 @@ class MarketplaceController extends Controller
             return response()->json(['status' => 'fail', 'message' => 'Order failed. Please try again.'], 500);
         }
 
-        // Initialize Monnify payment
+        // ── PAYMENT PROVIDER SWITCH ──────────────────────────────────
+        $paymentProvider = DB::table('settings')->value('marketplace_payment_provider') ?? 'xixapay';
+
+        if ($paymentProvider === 'xixapay') {
+            // Xixapay Dynamic Account
+            $xixa = config('services.xixapay');
+            $xixaPayload = [
+                'email' => $user->email,
+                'name' => $user->username,
+                'phoneNumber' => $user->phone ?? '08000000000',
+                'bankCode' => ['20987'], // Kolomoni (PalmPay when enabled: add '20867')
+                'accountType' => 'dynamic',
+                'amount' => $grandTotal,
+                'businessId' => $xixa['business_id'],
+                'externalReference' => $reference,
+                'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
+            ];
+
+            $xixaResponse = \Illuminate\Support\Facades\Http::timeout(30)->withHeaders([
+                'Authorization' => $xixa['authorization'],
+                'api-key' => $xixa['api_key'],
+                'Content-Type' => 'application/json',
+            ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $xixaPayload);
+
+            $xixaData = $xixaResponse->json();
+            Log::info('Xixapay dynamic account response', ['data' => $xixaData, 'order' => $reference]);
+
+            if ($xixaResponse->successful() && !empty($xixaData['bankAccounts'])) {
+                $account = $xixaData['bankAccounts'][0];
+                $order->update(['payment_reference' => $reference]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'payment_provider' => 'xixapay',
+                    'payment_type' => 'bank_transfer',
+                    'order_reference' => $reference,
+                    'order_id' => $order->id,
+                    'amount' => $grandTotal,
+                    'account_number' => $account['accountNumber'],
+                    'account_name' => $account['accountName'],
+                    'bank_name' => $account['bankName'],
+                    'bank_code' => $account['bankCode'],
+                    'expires_in' => '30 minutes',
+                    'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below to complete your order.',
+                ]);
+            }
+
+            // Xixapay failed — delete order and return error
+            MarketplaceOrderItem::where('order_id', $order->id)->delete();
+            $order->delete();
+            Log::error('Xixapay dynamic account failed', ['response' => $xixaData]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again.'], 500);
+        }
+
+        // ── MONNIFY CHECKOUT ─────────────────────────────────────────
         $habukhan_key = DB::table('habukhan_key')->first();
         $post_data = [
             'amount' => $grandTotal,
@@ -1385,6 +1444,40 @@ class MarketplaceController extends Controller
         }
 
         $this->completeOrder($order);
+        return response()->json(['status' => 'ok']);
+    }
+
+    // ─── PAYMENT: XIXAPAY WEBHOOK ───
+
+    public function xixapayWebhook(Request $request)
+    {
+        Log::info('Xixapay marketplace webhook received', ['data' => $request->all()]);
+
+        // Xixapay sends payment notification with externalReference = our order reference
+        $externalRef = $request->externalReference ?? $request->reference ?? null;
+        $status = $request->status ?? $request->paymentStatus ?? null;
+        $amount = (float) ($request->amount ?? 0);
+
+        if (!$externalRef) {
+            return response()->json(['status' => 'ok']);
+        }
+
+        $order = MarketplaceOrder::where('reference', $externalRef)->first();
+        if (!$order || $order->payment_status === 'paid') {
+            return response()->json(['status' => 'ok']);
+        }
+
+        // Accept if status is success/paid and amount matches (allow small tolerance)
+        $isPaid = in_array(strtolower($status ?? ''), ['success', 'successful', 'paid', 'completed']);
+        $amountMatch = $amount >= ($order->grand_total - 1); // 1 naira tolerance
+
+        if ($isPaid && $amountMatch) {
+            $this->completeOrder($order);
+            Log::info('Xixapay marketplace order completed', ['reference' => $externalRef]);
+        } else {
+            Log::warning('Xixapay webhook: payment not confirmed', ['status' => $status, 'amount' => $amount, 'expected' => $order->grand_total]);
+        }
+
         return response()->json(['status' => 'ok']);
     }
 
