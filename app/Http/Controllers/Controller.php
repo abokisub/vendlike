@@ -254,11 +254,16 @@ class Controller extends BaseController
                 if (is_null($get_user->palmpay) || is_null($get_user->kolomoni_mfb)) {
                     \Log::info("Xixapay SYNC: Missing accounts for $username. PalmPay:" . ($get_user->palmpay ?? 'None') . ", Kolomoni MFB:" . ($get_user->kolomoni_mfb ?? 'None'));
 
+                    // Only request missing bank codes
+                    $bankCodes = [];
+                    if (is_null($get_user->palmpay)) $bankCodes[] = '20867';
+                    if (is_null($get_user->kolomoni_mfb)) $bankCodes[] = '20987';
+
                     $payload = [
                         'email' => $get_user->email,
                         'name' => $get_user->username,
                         'phoneNumber' => $get_user->phone,
-                        'bankCode' => ['20867', '20987'],
+                        'bankCode' => $bankCodes,
                         'accountType' => 'static',
                         'businessId' => $xixa['business_id']
                     ];
@@ -278,10 +283,12 @@ class Controller extends BaseController
 
                     if ($response->successful()) {
                         $data = $response->json();
+                        \Log::info("Xixapay SYNC: Full response for $username", ['data' => $data]);
                         $updateData = [];
 
                         if (isset($data['bankAccounts'])) {
                             foreach ($data['bankAccounts'] as $bank) {
+                                \Log::info("Xixapay SYNC: Bank account received", ['bankCode' => $bank['bankCode'], 'accountNumber' => $bank['accountNumber'] ?? 'N/A']);
                                 if ((string) $bank['bankCode'] === '20867' && is_null($get_user->palmpay)) {
                                     $updateData['palmpay'] = $bank['accountNumber'];
                                 }
