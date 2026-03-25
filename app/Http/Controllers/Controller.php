@@ -277,12 +277,6 @@ class Controller extends BaseController
                         $payload['id_number'] = $get_user->nin;
                     }
 
-                    // If no KYC, use dynamic account (no ID required)
-                    if (!$hasKyc) {
-                        $payload['accountType'] = 'dynamic';
-                        unset($payload['id_type'], $payload['id_number']);
-                    }
-
                     $response = Http::timeout(25)->withHeaders([
                         'Authorization' => $xixa['authorization'],
                         'api-key' => $xixa['api_key']
