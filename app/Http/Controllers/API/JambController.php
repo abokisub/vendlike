@@ -37,7 +37,7 @@ class JambController extends Controller
         $vtpass_token = base64_encode($other_api->vtpass_username . ":" . $other_api->vtpass_password);
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://sandbox.vtpass.com/api/service-variations?serviceID=jamb");
+        curl_setopt($ch, CURLOPT_URL, "https://vtpass.com/api/service-variations?serviceID=jamb");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
@@ -104,7 +104,7 @@ class JambController extends Controller
             'type' => $request->variation_code,
         ];
 
-        $endpoint = "https://sandbox.vtpass.com/api/merchant-verify";
+        $endpoint = "https://vtpass.com/api/merchant-verify";
         $headers = [
             'Authorization: Basic ' . $vtpass_token,
             'Content-Type: application/json',
@@ -181,7 +181,7 @@ class JambController extends Controller
 
         $vtpass_token = base64_encode($other_api->vtpass_username . ":" . $other_api->vtpass_password);
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://sandbox.vtpass.com/api/service-variations?serviceID=jamb");
+        curl_setopt($ch, CURLOPT_URL, "https://vtpass.com/api/service-variations?serviceID=jamb");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
@@ -658,7 +658,7 @@ class JambController extends Controller
                 'request_id' => $requestId,
             ];
 
-            $endpoint = "https://sandbox.vtpass.com/api/pay";
+            $endpoint = "https://vtpass.com/api/pay";
             $headers = [
                 "Authorization: Basic " . $vtpass_token,
                 'Content-Type: application/json',
@@ -733,7 +733,7 @@ class JambController extends Controller
         $vtpass_token = base64_encode($other_api->vtpass_username . ":" . $other_api->vtpass_password);
 
         $payload = ['request_id' => $purchase->request_id];
-        $endpoint = "https://sandbox.vtpass.com/api/requery";
+        $endpoint = "https://vtpass.com/api/requery";
         $headers = [
             "Authorization: Basic " . $vtpass_token,
             'Content-Type: application/json',

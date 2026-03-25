@@ -1596,7 +1596,7 @@ class DataSend extends Controller
                 'phone' => $sendRequest->plan_phone,
                 'request_id' => Carbon::now('Africa/Lagos')->format('YmdHi') . substr(md5($data['transid']), 0, 8)
             );
-            $endpoints = "https://sandbox.vtpass.com/api/pay";
+            $endpoints = "https://vtpass.com/api/pay";
             $headers = [
                 "Authorization: Basic " . base64_encode($other_api->vtpass_username . ":" . $other_api->vtpass_password),
                 'Content-Type: application/json'
