@@ -910,7 +910,7 @@ class MarketplaceController extends Controller
                 'email' => $user->email,
                 'name' => $user->username,
                 'phoneNumber' => $user->phone ?? '08000000000',
-                'bankCode' => ['20987'], // Kolomoni (PalmPay when enabled: add '20867')
+                'bankCode' => ['29007'], // Safehaven — supports dynamic accounts
                 'accountType' => 'dynamic',
                 'amount' => $grandTotal,
                 'businessId' => $xixa['business_id'],
