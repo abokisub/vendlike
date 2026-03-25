@@ -696,6 +696,7 @@ class BuyGiftCardController extends Controller
 
         $filters = $request->only(['size', 'page', 'productName', 'countryCode', 'includeRange', 'includeFixed']);
         if (empty($filters['size'])) $filters['size'] = 200;
+        if (!isset($filters['page'])) $filters['page'] = 1;
 
         $result = $this->reloadly->getProducts($filters);
         if ($result['error']) {
@@ -704,12 +705,21 @@ class BuyGiftCardController extends Controller
 
         $data = $result['data'];
         $products = is_array($data) && isset($data['content']) ? $data['content'] : $data;
+        $totalElements = $data['totalElements'] ?? count($products);
+        $totalPages = $data['totalPages'] ?? 1;
+        $currentPage = $data['number'] ?? 0;
 
         return response()->json([
             'status' => 'success',
             'data' => $products,
             'markup_percentage' => $this->getMarkupPercentage(),
             'dollar_rate' => $this->getDollarRate(),
+            'pagination' => [
+                'total' => $totalElements,
+                'total_pages' => $totalPages,
+                'current_page' => $currentPage,
+                'size' => $filters['size'],
+            ],
         ]);
     }
 

@@ -15,8 +15,8 @@ class FaqSeeder extends Seeder
     {
         \DB::table('faqs')->insert([
             [
-                'question' => 'What is Amtpay?',
-                'answer' => 'Amtpay is a secure digital wallet and payment platform that allows you to manage your finances, pay bills, and send money with ease.',
+                'question' => 'What is VendLike?',
+                'answer' => 'VendLike is a smart digital services platform that allows you to buy data, recharge airtime, pay bills, trade gift cards, shop the marketplace, and withdraw earnings — all in one secure app.',
                 'category' => 'General',
                 'status' => 1,
                 'created_at' => now(),
@@ -40,15 +40,15 @@ class FaqSeeder extends Seeder
             ],
             [
                 'question' => 'How can I contact support?',
-                'answer' => 'You can reach us via our live chat ("Amtpay"), send an email to our support team, or contact us through WhatsApp. Our support channels are available 24/7.',
+                'answer' => 'You can reach us via our live chat ("VendLike AI"), send an email to our support team, or contact us through WhatsApp. Our support channels are available 24/7.',
                 'category' => 'Support',
                 'status' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'question' => 'What is the "Amtpay" AI Chat?',
-                'answer' => 'Amtpay is our smart AI support assistant designed to provide instant answers to your questions. For complex issues, Amtpay can also connect you to a human agent.',
+                'question' => 'What is the "VendLike AI" Chat?',
+                'answer' => 'VendLike AI is our smart support assistant designed to provide instant answers to your questions. For complex issues, VendLike AI can also connect you to a human agent.',
                 'category' => 'Support',
                 'status' => 1,
                 'created_at' => now(),

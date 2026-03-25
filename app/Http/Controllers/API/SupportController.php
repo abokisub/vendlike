@@ -183,7 +183,7 @@ class SupportController extends Controller
         // 1. Greetings
         if (preg_match('/^(hi|hello|hey|greetings|good morning|good afternoon|good evening)/i', $message)) {
             return [
-                'message' => "Hi {$user->username} 👋 I'm Amtpay Assistant, your FAQ helper.\n\nI can help explain how things work, fees, and limits. For account-specific issues or missing funds, please tap 'Contact Support'.\n\nHow can I help you today?",
+                'message' => "Hi {$user->username} 👋 I'm VendLike Assistant, your FAQ helper.\n\nI can help explain how things work, fees, and limits. For account-specific issues or missing funds, please tap 'Contact Support'.\n\nHow can I help you today?",
                 'actions' => [
                     ['label' => 'How to Fund Wallet', 'action' => 'faq_funding'],
                     ['label' => 'Service Fees', 'action' => 'faq_fees'],
@@ -508,7 +508,7 @@ class SupportController extends Controller
                 ]);
 
                 // Log a system notification in the chat
-                $this->saveMessage($ticket->id, 'bot', null, "Agent was unavailable, so Amtpay AI has resumed to assist you! 👋", true);
+                $this->saveMessage($ticket->id, 'bot', null, "Agent was unavailable, so VendLike AI has resumed to assist you! 👋", true);
 
                 // Refresh ticket object
                 $ticket = DB::table('support_tickets')->where('id', $ticket->id)->first();
@@ -594,7 +594,7 @@ class SupportController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Ticket not found'], 404);
 
         // Notify User via System Message
-        $this->saveMessage($ticketId, 'agent', $user->id, "👋 Support session ended. Agent {$user->name} has closed this ticket. Amtpay AI is back to help you!", true);
+        $this->saveMessage($ticketId, 'agent', $user->id, "👋 Support session ended. Agent {$user->name} has closed this ticket. VendLike AI is back to help you!", true);
 
         DB::table('support_tickets')->where('id', $ticketId)->update([
             'status' => 'closed',
@@ -617,7 +617,7 @@ class SupportController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Ticket not found'], 404);
 
         // Notify User via System Message
-        $this->saveMessage($ticketId, 'agent', $user->id, "👋 Support session ended. Agent {$user->name} has closed this ticket. Amtpay AI is back to help you!", true);
+        $this->saveMessage($ticketId, 'agent', $user->id, "👋 Support session ended. Agent {$user->name} has closed this ticket. VendLike AI is back to help you!", true);
 
         DB::table('support_tickets')->where('id', $ticketId)->update([
             'status' => 'closed',

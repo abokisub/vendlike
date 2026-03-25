@@ -23,10 +23,11 @@ class AppController extends Controller
                     'general' => $this->general(),
                     'bank' => DB::table('habukhan_key')->select('account_number', 'account_name', 'bank_name', 'min', 'max')->first(),
                     'support' => [
-                        'support_ai_name' => 'Amtpay',
+                        'support_ai_name' => 'VendLike',
                         'support_call_name' => 'Aminiya',
-                        'support_phone' => optional($this->general())->app_phone ?? '+2349137570018',
-                        'support_whatsapp' => '2349137570018'
+                        'support_phone' => optional($this->general())->app_phone ?? '+2348078497075',
+                        'support_whatsapp' => '2348078497075',
+                        'whatsapp_channel' => 'https://whatsapp.com/channel/0029VbCmM1E6buMOgKBOsc2C'
                     ]
                 ]);
             }
@@ -1116,10 +1117,11 @@ class AppController extends Controller
                     'instagram' => $general->instagram,
 
                     // Support Identity
-                    'support_ai_name' => 'Amtpay',
-                    'support_call_name' => 'Amtpay',
+                    'support_ai_name' => 'VendLike',
+                    'support_call_name' => 'VendLike',
                     'support_phone' => $general->app_phone,
                     'support_whatsapp' => $general->app_whatsapp,
+                    'whatsapp_channel' => 'https://whatsapp.com/channel/0029VbCmM1E6buMOgKBOsc2C',
                 ],
                 'faqs' => $faqs
             ]);

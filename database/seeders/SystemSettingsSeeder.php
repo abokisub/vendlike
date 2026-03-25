@@ -20,7 +20,7 @@ class SystemSettingsSeeder extends Seeder
             [
                 'app_name' => 'Kobopoint',
                 'app_email' => 'support@kobopoint.com',
-                'app_phone' => '07000000000',
+                'app_phone' => '08078497075',
                 'app_address' => 'Nigeria',
                 'currency' => 'NGN',
                 'currency_symbol' => '₦',

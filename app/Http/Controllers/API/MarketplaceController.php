@@ -647,7 +647,7 @@ class MarketplaceController extends Controller
         }
 
         $categories = MarketplaceCategory::where('is_active', true)
-            ->withCount(['products' => function ($q) { $q->where('is_active', true)->where('stock', '>', 0); }])
+            ->withCount(['products' => function ($q) { $q->where('is_active', true); }])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -677,8 +677,7 @@ class MarketplaceController extends Controller
         }
 
         $query = MarketplaceProduct::with('category')
-            ->where('is_active', true)
-            ->where('stock', '>', 0);
+            ->where('is_active', true);
 
         if ($request->category_id) {
             $query->where('category_id', $request->category_id);
@@ -702,6 +701,7 @@ class MarketplaceController extends Controller
                 'discount_price' => $p->discount_price,
                 'effective_price' => $p->effective_price,
                 'stock' => $p->stock,
+                'out_of_stock' => $p->stock <= 0,
                 'weight' => (float) $p->weight,
                 'images' => $p->image_urls,
                 'sizes' => $p->sizes,
@@ -913,12 +913,12 @@ class MarketplaceController extends Controller
             ],
         ];
 
-        $url = 'https://sandbox.monnify.com/api/v1/merchant/transactions/init-transaction';
+        $url = 'https://api.monnify.com/api/v1/merchant/transactions/init-transaction';
 
         // Step 1: Get Bearer token from Monnify
         $authCh = curl_init();
         curl_setopt_array($authCh, [
-            CURLOPT_URL => 'https://sandbox.monnify.com/api/v1/auth/login',
+            CURLOPT_URL => 'https://api.monnify.com/api/v1/auth/login',
             CURLOPT_POST => 1,
             CURLOPT_RETURNTRANSFER => 1,
             CURLOPT_TIMEOUT => 30,
@@ -1563,7 +1563,7 @@ class MarketplaceController extends Controller
             $base = base64_encode($habukhan_key->mon_app_key . ':' . $habukhan_key->mon_sk_key);
             $ch = curl_init();
             curl_setopt_array($ch, [
-                CURLOPT_URL => 'https://sandbox.monnify.com/api/v1/auth/login',
+                CURLOPT_URL => 'https://api.monnify.com/api/v1/auth/login',
                 CURLOPT_POST => 1,
                 CURLOPT_RETURNTRANSFER => 1,
                 CURLOPT_TIMEOUT => 30,
@@ -1578,7 +1578,7 @@ class MarketplaceController extends Controller
             // Verify transaction
             $ch = curl_init();
             curl_setopt_array($ch, [
-                CURLOPT_URL => 'https://sandbox.monnify.com/api/v2/transactions/' . urlencode($transactionRef),
+                CURLOPT_URL => 'https://api.monnify.com/api/v2/transactions/' . urlencode($transactionRef),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 30,
                 CURLOPT_HTTPHEADER => [
