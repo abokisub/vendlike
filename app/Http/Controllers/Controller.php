@@ -268,12 +268,19 @@ class Controller extends BaseController
                         'businessId' => $xixa['business_id']
                     ];
 
+                    // Add BVN/NIN only if available (optional for static)
                     if (!empty($get_user->bvn)) {
                         $payload['id_type'] = 'bvn';
                         $payload['id_number'] = $get_user->bvn;
                     } elseif (!empty($get_user->nin)) {
                         $payload['id_type'] = 'nin';
                         $payload['id_number'] = $get_user->nin;
+                    }
+
+                    // If no KYC, use dynamic account (no ID required)
+                    if (!$hasKyc) {
+                        $payload['accountType'] = 'dynamic';
+                        unset($payload['id_type'], $payload['id_number']);
                     }
 
                     $response = Http::timeout(25)->withHeaders([
