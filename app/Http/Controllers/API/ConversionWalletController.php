@@ -238,19 +238,30 @@ class ConversionWalletController extends Controller
             }
 
             $transid = 'CW_BT_' . time() . rand(1000, 9999);
-            $bankingService = new \App\Services\Banking\BankingService();
-            $transferResult = $bankingService->transfer([
-                'amount'         => $amount,
-                'bank_code'      => $request->bank_code,
-                'account_number' => $request->account_number,
-                'account_name'   => $request->account_name,
-                'narration'      => 'VendLike Conversion Wallet Withdrawal',
-                'reference'      => $transid,
+
+            // Call Xixapay transfer directly (same as main transfer flow)
+            $xixa = config('services.xixapay');
+            $xixaResponse = \Illuminate\Support\Facades\Http::timeout(180)->withHeaders([
+                'Authorization' => $xixa['authorization'],
+                'api-key' => $xixa['api_key'],
+                'Content-Type' => 'application/json',
+            ])->post('https://api.xixapay.com/api/v1/transfer', [
+                'businessId' => $xixa['business_id'],
+                'amount' => $amount,
+                'bank' => $request->bank_code,
+                'accountNumber' => $request->account_number,
+                'narration' => 'VendLike Conversion Wallet Withdrawal - ' . $transid,
             ]);
 
-            if (!isset($transferResult['status']) || $transferResult['status'] !== 'success') {
+            $xixaData = $xixaResponse->json();
+            \Log::info('Conversion wallet bank transfer response', ['data' => $xixaData, 'transid' => $transid]);
+
+            $transferSuccess = $xixaResponse->successful() && isset($xixaData['status']) && $xixaData['status'] === 'success';
+
+            if (!$transferSuccess) {
+                // Refund on failure
                 $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
-                return response()->json(['status' => 'error', 'message' => $transferResult['message'] ?? 'Transfer failed. Please try again.'], 400);
+                return response()->json(['status' => 'error', 'message' => $xixaData['message'] ?? 'Transfer failed. Please try again.'], 400);
             }
 
             DB::table('message')->insert([
