@@ -22,12 +22,15 @@ class PaymentController extends Controller
         // Use exact approach from Xixapay docs
         $payload = file_get_contents('php://input');
         $signatureHeader = $_SERVER['HTTP_XIXAPAY'] ?? $request->header('xixapay') ?? '';
-        $secretKey = getenv('XIXAPAY_SECRET_KEY');
+
+        // Read key directly from .env file since getenv() doesn't work in Laravel with config:cache
+        $secretKey = $this->readEnvKey('XIXAPAY_SECRET_KEY');
 
         $calculatedSignature = hash_hmac('sha256', $payload, $secretKey);
 
         \Log::info('Xixapay webhook', [
             'match' => hash_equals($calculatedSignature, $signatureHeader),
+            'key_length' => strlen($secretKey),
             'payload_len' => strlen($payload),
         ]);
 
@@ -1010,6 +1013,26 @@ class PaymentController extends Controller
         }
         return response()->json(['status' => 'fail', 'message' => 'Please Kindly Try Again Later'], 403);
     }
+    /**
+     * Read a key directly from .env file — bypasses config cache
+     */
+    private function readEnvKey(string $key): string
+    {
+        $envPath = base_path('.env');
+        if (!file_exists($envPath)) return env($key, '');
+        
+        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos(trim($line), '#') === 0) continue;
+            if (strpos($line, $key . '=') === 0) {
+                $value = substr($line, strlen($key . '='));
+                // Strip surrounding quotes if present
+                return trim($value, '"\'');
+            }
+        }
+        return env($key, '');
+    }
+
     public function DynamicAccount(Request $request)
     {
         $explode_url = explode(',', config('app.habukhan_app_key'));
