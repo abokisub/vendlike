@@ -904,28 +904,70 @@ class MarketplaceController extends Controller
         $paymentProvider = DB::table('settings')->value('marketplace_payment_provider') ?? 'xixapay';
 
         if ($paymentProvider === 'xixapay') {
-            // Xixapay Dynamic Account
+            // Xixapay Dynamic Account — try all supported bank codes
             $xixa = config('services.xixapay');
-            $xixaPayload = [
-                'email' => $user->email,
-                'name' => $user->username,
-                'phoneNumber' => $user->phone ?? '08000000000',
-                'bankCode' => ['29007'], // Safehaven — supports dynamic accounts
-                'accountType' => 'dynamic',
-                'amount' => $grandTotal,
-                'businessId' => $xixa['business_id'],
-                'externalReference' => $reference,
-                'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
-            ];
 
-            $xixaResponse = \Illuminate\Support\Facades\Http::timeout(30)->withHeaders([
-                'Authorization' => $xixa['authorization'],
-                'api-key' => $xixa['api_key'],
-                'Content-Type' => 'application/json',
-            ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $xixaPayload);
+            // Try all 3 bank codes: Palmpay, Kolomoni, Safehaven
+            $bankCodesToTry = [['20867'], ['20987'], ['29007']];
+            $xixaData = null;
+            $xixaResponse = null;
 
-            $xixaData = $xixaResponse->json();
-            Log::info('Xixapay dynamic account response', ['data' => $xixaData, 'order' => $reference]);
+            // Reuse existing customer_id if we have one (avoids duplicate KYC issues)
+            $existingCustomerId = $user->xixapay_customer_id ?? null;
+
+            foreach ($bankCodesToTry as $bankCode) {
+                if ($existingCustomerId) {
+                    // Option 1: existing KYC customer
+                    $xixaPayload = [
+                        'customer_id' => $existingCustomerId,
+                        'bankCode' => $bankCode,
+                        'businessId' => $xixa['business_id'],
+                        'accountType' => 'dynamic',
+                        'amount' => $grandTotal,
+                        'externalReference' => $reference,
+                        'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
+                    ];
+                } else {
+                    // Option 2: new customer with raw data
+                    $xixaPayload = [
+                        'email' => $user->email,
+                        'name' => $user->name ?? $user->username,
+                        'phoneNumber' => $user->phone ?? '08000000000',
+                        'bankCode' => $bankCode,
+                        'businessId' => $xixa['business_id'],
+                        'accountType' => 'dynamic',
+                        'amount' => $grandTotal,
+                        'externalReference' => $reference,
+                        'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
+                    ];
+                }
+
+                $xixaResponse = \Illuminate\Support\Facades\Http::timeout(30)->withHeaders([
+                    'Authorization' => $xixa['authorization'],
+                    'api-key' => $xixa['api_key'],
+                    'Content-Type' => 'application/json',
+                ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $xixaPayload);
+
+                $xixaData = $xixaResponse->json();
+                Log::info('Xixapay dynamic account response', ['bankCode' => $bankCode, 'data' => $xixaData, 'order' => $reference]);
+
+                // Save customer_id for future use
+                if (!empty($xixaData['customer']['customer_id']) && !$existingCustomerId) {
+                    try {
+                        DB::table('user')->where('id', $user_id)->update([
+                            'xixapay_customer_id' => $xixaData['customer']['customer_id'],
+                        ]);
+                        $existingCustomerId = $xixaData['customer']['customer_id'];
+                    } catch (\Exception $e) {
+                        // Column may not exist yet — ignore
+                    }
+                }
+
+                // Got accounts — stop trying
+                if ($xixaResponse->successful() && !empty($xixaData['bankAccounts'])) {
+                    break;
+                }
+            }
 
             if ($xixaResponse->successful() && !empty($xixaData['bankAccounts'])) {
                 $account = $xixaData['bankAccounts'][0];
@@ -983,7 +1025,7 @@ class MarketplaceController extends Controller
             // No account at all — delete order
             MarketplaceOrderItem::where('order_id', $order->id)->delete();
             $order->delete();
-            Log::error('Xixapay dynamic account failed and no static fallback', ['response' => $xixaData]);
+            Log::error('Xixapay all bank codes failed and no static fallback', ['last_response' => $xixaData, 'order' => $reference]);
             return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again.'], 500);
         }
 
