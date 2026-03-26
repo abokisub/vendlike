@@ -132,6 +132,7 @@ Route::get('admin/buy-giftcard/products/{id}/secure', [App\Http\Controllers\API\
 Route::prefix('conversion-wallet')->group(function () {
     Route::get('balance/{id}', [App\Http\Controllers\API\ConversionWalletController::class, 'getWalletBalances']);
     Route::post('withdraw/{id}', [App\Http\Controllers\API\ConversionWalletController::class, 'withdrawFromConversionWallet']);
+    Route::post('bank-transfer/{id}', [App\Http\Controllers\API\ConversionWalletController::class, 'bankTransferFromConversionWallet']);
     Route::get('history/{id}', [App\Http\Controllers\API\ConversionWalletController::class, 'getTransactionHistory']);
 });
 

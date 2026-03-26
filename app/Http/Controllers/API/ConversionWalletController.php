@@ -190,4 +190,87 @@ class ConversionWalletController extends Controller
             'wallet_balance' => number_format($conversionWallet->balance, 2)
         ]);
     }
+
+    /**
+     * Direct bank transfer from conversion wallet (bypasses main wallet)
+     */
+    public function bankTransferFromConversionWallet(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount'         => 'required|numeric|min:100',
+            'account_number' => 'required|string',
+            'bank_code'      => 'required|string',
+            'account_name'   => 'required|string',
+            'pin'            => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        }
+
+        $verified_user_id = $this->verifyapptoken($request->user_id);
+        $user = DB::table('user')->where(['id' => $verified_user_id, 'status' => 1])->first();
+        if (!$user) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        if (trim($user->pin) != trim($request->pin)) return response()->json(['status' => 'error', 'message' => 'Invalid transaction PIN'], 403);
+
+        $amount = (float) $request->amount;
+
+        return DB::transaction(function () use ($request, $user, $amount) {
+            $a2cashWallet   = ConversionWallet::getOrCreateA2CashWallet($user->id);
+            $giftCardWallet = ConversionWallet::getOrCreateGiftCardWallet($user->id);
+            $totalConversion = $a2cashWallet->balance + $giftCardWallet->balance;
+
+            if ($totalConversion < $amount) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Insufficient conversion wallet balance. Available: ₦' . number_format($totalConversion, 2),
+                ], 400);
+            }
+
+            // Deduct from A2Cash first, then GiftCard
+            $remaining = $amount;
+            if ($a2cashWallet->balance > 0 && $remaining > 0) {
+                $debit = min($remaining, $a2cashWallet->balance);
+                $a2cashWallet->debit($debit, 'Bank withdrawal', 'bank_transfer', 'BT_' . time());
+                $remaining -= $debit;
+            }
+            if ($remaining > 0 && $giftCardWallet->balance > 0) {
+                $giftCardWallet->debit($remaining, 'Bank withdrawal', 'bank_transfer', 'BT_' . time() . '_gc');
+            }
+
+            $transid = 'CW_BT_' . time() . rand(1000, 9999);
+            $bankingService = new \App\Services\Banking\BankingService();
+            $transferResult = $bankingService->transfer([
+                'amount'         => $amount,
+                'bank_code'      => $request->bank_code,
+                'account_number' => $request->account_number,
+                'account_name'   => $request->account_name,
+                'narration'      => 'VendLike Conversion Wallet Withdrawal',
+                'reference'      => $transid,
+            ]);
+
+            if (!isset($transferResult['status']) || $transferResult['status'] !== 'success') {
+                $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
+                return response()->json(['status' => 'error', 'message' => $transferResult['message'] ?? 'Transfer failed. Please try again.'], 400);
+            }
+
+            DB::table('message')->insert([
+                'username'      => $user->username,
+                'message'       => 'Conversion Wallet Bank Transfer to ' . $request->account_name . ' (' . $request->account_number . ')',
+                'amount'        => $amount,
+                'oldbal'        => $totalConversion,
+                'newbal'        => max(0, $totalConversion - $amount),
+                'habukhan_date' => Carbon::now(),
+                'transid'       => $transid,
+                'plan_status'   => 1,
+                'role'          => 'debit',
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Transfer of ₦' . number_format($amount, 2) . ' initiated successfully.',
+                'transid' => $transid,
+                'amount'  => $amount,
+            ]);
+        });
+    }
 }
