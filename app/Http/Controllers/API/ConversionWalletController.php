@@ -259,9 +259,14 @@ class ConversionWalletController extends Controller
             $transferSuccess = $xixaResponse->successful() && isset($xixaData['status']) && $xixaData['status'] === 'success';
 
             if (!$transferSuccess) {
+
                 // Refund on failure
                 $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
-                return response()->json(['status' => 'error', 'message' => $xixaData['message'] ?? 'Transfer failed. Please try again.'], 400);
+                $errMsg = $xixaData['message'] ?? 'Transfer failed. Please try again.';
+                if (str_contains(strtolower($errMsg), 'could not be processed')) {
+                    $errMsg = 'This bank is not supported for withdrawals via our payment provider. Please use GTBank, Access Bank, UBA, Kolomoni, or other major banks.';
+                }
+                return response()->json(['status' => 'error', 'message' => $errMsg], 400);
             }
 
             DB::table('message')->insert([
