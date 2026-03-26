@@ -19,33 +19,19 @@ class PaymentController extends Controller
 {
     public function Xixapay(Request $request)
     {
-        // MUST use raw php://input — Laravel's getContent() may alter the body
+        // Use exact approach from Xixapay docs
         $payload = file_get_contents('php://input');
-        if (empty($payload)) {
-            $payload = $request->getContent();
-        }
+        $signatureHeader = $_SERVER['HTTP_XIXAPAY'] ?? $request->header('xixapay') ?? '';
+        $secretKey = getenv('XIXAPAY_SECRET_KEY');
 
-        // Use raw env() to bypass config cache issues
-        $secret = getenv('XIXAPAY_SECRET_KEY') ?: env('XIXAPAY_SECRET_KEY');
-        $secret = str_replace('Bearer ', '', $secret); // Strip prefix if present
+        $calculatedSignature = hash_hmac('sha256', $payload, $secretKey);
 
-        // Retrieve the XixaPay signature from the request headers
-        $xixapay_signature = $request->header('xixapay');
-
-        // Compute the hash key using the payload and secret key
-        $hashkey = hash_hmac('sha256', $payload, $secret);
-
-        // Log for debugging
-        \Log::info('Xixapay webhook received', [
-            'signature_received' => $xixapay_signature,
-            'computed_hash' => $hashkey,
-            'match' => $xixapay_signature === $hashkey,
-            'payload_length' => strlen($payload),
+        \Log::info('Xixapay webhook', [
+            'match' => hash_equals($calculatedSignature, $signatureHeader),
+            'payload_len' => strlen($payload),
         ]);
 
-        // Compare the computed hash key with the received signature
-        if ($xixapay_signature !== $hashkey) {
-            \Log::warning('Xixapay webhook signature mismatch');
+        if (!hash_equals($calculatedSignature, $signatureHeader)) {
             return response()->json('Unknown source', 403);
         }
 
