@@ -947,10 +947,33 @@ class MarketplaceController extends Controller
                 ]);
             }
 
-            // Xixapay failed — delete order and return error
+            // Dynamic failed — fallback to user's existing static account
+            Log::warning('Xixapay dynamic empty, falling back to static account', ['order' => $reference]);
+            $staticAccount = $user->kolomoni_mfb ?? $user->palmpay ?? null;
+            $staticBank = $user->kolomoni_mfb ? 'Kolomoni MFB' : ($user->palmpay ? 'PalmPay' : null);
+
+            if ($staticAccount) {
+                $order->update(['payment_reference' => $reference]);
+                return response()->json([
+                    'status' => 'success',
+                    'payment_provider' => 'xixapay_static',
+                    'payment_type' => 'bank_transfer',
+                    'order_reference' => $reference,
+                    'order_id' => $order->id,
+                    'amount' => $grandTotal,
+                    'account_number' => $staticAccount,
+                    'account_name' => 'VendLike - ' . strtoupper($user->username),
+                    'bank_name' => $staticBank,
+                    'expires_in' => '60 minutes',
+                    'message' => 'Transfer EXACTLY ₦' . number_format($grandTotal, 2) . ' to the account below. Use order ref ' . $reference . ' as narration.',
+                    'important' => 'Transfer the exact amount. Admin will verify and confirm your order.',
+                ]);
+            }
+
+            // No account at all — delete order
             MarketplaceOrderItem::where('order_id', $order->id)->delete();
             $order->delete();
-            Log::error('Xixapay dynamic account failed', ['response' => $xixaData]);
+            Log::error('Xixapay dynamic account failed and no static fallback', ['response' => $xixaData]);
             return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again.'], 500);
         }
 
