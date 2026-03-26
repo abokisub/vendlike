@@ -933,17 +933,22 @@ class MarketplaceController extends Controller
 
                 return response()->json([
                     'status' => 'success',
-                    'payment_provider' => 'xixapay',
-                    'payment_type' => 'bank_transfer',
-                    'order_reference' => $reference,
-                    'order_id' => $order->id,
-                    'amount' => $grandTotal,
-                    'account_number' => $account['accountNumber'],
-                    'account_name' => $account['accountName'],
-                    'bank_name' => $account['bankName'],
-                    'bank_code' => $account['bankCode'],
-                    'expires_in' => '30 minutes',
-                    'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below to complete your order.',
+                    'message' => 'Order created. Complete payment.',
+                    'data' => [
+                        'payment_provider' => 'xixapay',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $account['accountNumber'],
+                        'account_name' => $account['accountName'],
+                        'bank_name' => $account['bankName'],
+                        'bank_code' => $account['bankCode'],
+                        'expires_in' => '30 minutes',
+                        'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below to complete your order.',
+                    ],
                 ]);
             }
 
@@ -956,17 +961,22 @@ class MarketplaceController extends Controller
                 $order->update(['payment_reference' => $reference]);
                 return response()->json([
                     'status' => 'success',
-                    'payment_provider' => 'xixapay_static',
-                    'payment_type' => 'bank_transfer',
-                    'order_reference' => $reference,
-                    'order_id' => $order->id,
-                    'amount' => $grandTotal,
-                    'account_number' => $staticAccount,
-                    'account_name' => 'VendLike - ' . strtoupper($user->username),
-                    'bank_name' => $staticBank,
-                    'expires_in' => '60 minutes',
-                    'message' => 'Transfer EXACTLY ₦' . number_format($grandTotal, 2) . ' to the account below. Use order ref ' . $reference . ' as narration.',
-                    'important' => 'Transfer the exact amount. Admin will verify and confirm your order.',
+                    'message' => 'Order created. Complete payment.',
+                    'data' => [
+                        'payment_provider' => 'xixapay',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $staticAccount,
+                        'account_name' => 'VendLike - ' . strtoupper($user->username),
+                        'bank_name' => $staticBank,
+                        'expires_in' => '60 minutes',
+                        'message' => 'Transfer EXACTLY ₦' . number_format($grandTotal, 2) . ' to the account below. Use order ref ' . $reference . ' as narration.',
+                        'important' => 'Transfer the exact amount. Admin will verify and confirm your order.',
+                    ],
                 ]);
             }
 
