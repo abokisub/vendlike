@@ -19,32 +19,33 @@ class PaymentController extends Controller
 {
     public function Xixapay(Request $request)
     {
-        // Retrieve the raw payload from the request
-        $payload = $request->getContent();
+        // MUST use raw php://input — Laravel's getContent() may alter the body
+        $payload = file_get_contents('php://input');
+        if (empty($payload)) {
+            $payload = $request->getContent();
+        }
 
-        // Define the secret key from environment
-        $secret = env('XIXAPAY_SECRET_KEY');
+        // Use raw env() to bypass config cache issues
+        $secret = getenv('XIXAPAY_SECRET_KEY') ?: env('XIXAPAY_SECRET_KEY');
+        $secret = str_replace('Bearer ', '', $secret); // Strip prefix if present
 
         // Retrieve the XixaPay signature from the request headers
         $xixapay_signature = $request->header('xixapay');
 
-        // Log all headers and payload for debugging
-        \Log::info('Xixapay webhook received', [
-            'headers' => $request->headers->all(),
-            'payload_preview' => substr($payload, 0, 500),
-            'signature_received' => $xixapay_signature,
-            'computed_hash' => hash_hmac('sha256', $payload, $secret),
-        ]);
-
         // Compute the hash key using the payload and secret key
         $hashkey = hash_hmac('sha256', $payload, $secret);
 
+        // Log for debugging
+        \Log::info('Xixapay webhook received', [
+            'signature_received' => $xixapay_signature,
+            'computed_hash' => $hashkey,
+            'match' => $xixapay_signature === $hashkey,
+            'payload_length' => strlen($payload),
+        ]);
+
         // Compare the computed hash key with the received signature
         if ($xixapay_signature !== $hashkey) {
-            \Log::warning('Xixapay webhook signature mismatch', [
-                'received' => $xixapay_signature,
-                'expected' => $hashkey,
-            ]);
+            \Log::warning('Xixapay webhook signature mismatch');
             return response()->json('Unknown source', 403);
         }
 
