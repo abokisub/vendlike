@@ -27,13 +27,24 @@ class PaymentController extends Controller
 
         // Retrieve the XixaPay signature from the request headers
         $xixapay_signature = $request->header('xixapay');
-        // Log the incoming payload for debugging
+
+        // Log all headers and payload for debugging
+        \Log::info('Xixapay webhook received', [
+            'headers' => $request->headers->all(),
+            'payload_preview' => substr($payload, 0, 500),
+            'signature_received' => $xixapay_signature,
+            'computed_hash' => hash_hmac('sha256', $payload, $secret),
+        ]);
 
         // Compute the hash key using the payload and secret key
         $hashkey = hash_hmac('sha256', $payload, $secret);
 
         // Compare the computed hash key with the received signature
         if ($xixapay_signature !== $hashkey) {
+            \Log::warning('Xixapay webhook signature mismatch', [
+                'received' => $xixapay_signature,
+                'expected' => $hashkey,
+            ]);
             return response()->json('Unknown source', 403);
         }
 
