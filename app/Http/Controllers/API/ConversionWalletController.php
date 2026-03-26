@@ -207,7 +207,7 @@ class ConversionWalletController extends Controller
             return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
         }
 
-        $verified_user_id = $this->verifyapptoken($request->user_id);
+        $verified_user_id = $this->verifyapptoken($request->header('Authorization'));
         $user = DB::table('user')->where(['id' => $verified_user_id, 'status' => 1])->first();
         if (!$user) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         if (trim($user->pin) != trim($request->pin)) return response()->json(['status' => 'error', 'message' => 'Invalid transaction PIN'], 403);
