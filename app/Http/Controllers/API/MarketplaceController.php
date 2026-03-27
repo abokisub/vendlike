@@ -1574,7 +1574,6 @@ class MarketplaceController extends Controller
                 'data' => ['reference' => $order->reference, 'payment_status' => 'pending', 'status' => $order->status],
             ]);
         }
-        }
 
         $habukhan_key = DB::table('habukhan_key')->first();
         $monnifyRef = $order->monnify_reference ?? $reference;
