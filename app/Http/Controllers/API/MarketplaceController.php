@@ -1065,12 +1065,14 @@ class MarketplaceController extends Controller
             curl_close($pwCh);
 
             $pwData = json_decode($pwResult, true);
+            // PointWave wraps response in a 'data' key
+            $pwPayload = $pwData['data'] ?? $pwData;
             Log::info('PointWave dynamic account response', ['data' => $pwData, 'order' => $reference]);
 
-            if ($pwHttpCode === 200 && ($pwData['status'] ?? '') === 'success' && !empty($pwData['account_number'])) {
+            if ($pwHttpCode === 200 && ($pwPayload['status'] ?? '') === 'success' && !empty($pwPayload['account_number'])) {
                 $order->update([
                     'payment_reference' => $reference,
-                    'pointwave_order_id' => $pwData['order_id'] ?? null,
+                    'pointwave_order_id' => $pwPayload['order_id'] ?? null,
                 ]);
 
                 return response()->json([
@@ -1082,12 +1084,12 @@ class MarketplaceController extends Controller
                         'reference' => $reference,
                         'order_reference' => $reference,
                         'order_id' => $order->id,
-                        'pointwave_order_id' => $pwData['order_id'] ?? null,
+                        'pointwave_order_id' => $pwPayload['order_id'] ?? null,
                         'amount' => $grandTotal,
                         'grand_total' => $grandTotal,
-                        'account_number' => $pwData['account_number'],
-                        'account_name' => $pwData['account_name'],
-                        'bank_name' => $pwData['bank_name'],
+                        'account_number' => $pwPayload['account_number'],
+                        'account_name' => $pwPayload['account_name'],
+                        'bank_name' => $pwPayload['bank_name'],
                         'expires_in' => '30 minutes',
                         'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below to complete your order.',
                     ],
@@ -1635,9 +1637,9 @@ class MarketplaceController extends Controller
         Log::info('PointWave marketplace webhook received', ['data' => $request->all()]);
 
         // PointWave sends reference = our order reference
-        $reference = $request->reference ?? $request->order_reference ?? null;
-        $status = strtolower($request->status ?? $request->payment_status ?? '');
-        $amount = (float) ($request->amount ?? 0);
+        $reference = $request->reference ?? $request->order_reference ?? $request->input('data.reference') ?? null;
+        $status = strtolower($request->status ?? $request->payment_status ?? $request->input('data.status') ?? '');
+        $amount = (float) ($request->amount ?? $request->input('data.amount') ?? 0);
 
         if (!$reference) {
             return response('success', 200)->header('Content-Type', 'text/plain');
