@@ -630,7 +630,7 @@ class MarketplaceController extends Controller
         if ($request->has('marketplace_status')) $updates['marketplace_status'] = (int) $request->marketplace_status;
         if ($request->has('marketplace_delivery_fee')) $updates['marketplace_delivery_fee'] = (float) $request->marketplace_delivery_fee;
         if ($request->has('marketplace_delivery_mode')) $updates['marketplace_delivery_mode'] = $request->marketplace_delivery_mode;
-        if ($request->has('marketplace_payment_provider') && in_array($request->marketplace_payment_provider, ['xixapay', 'monnify'])) {
+        if ($request->has('marketplace_payment_provider') && in_array($request->marketplace_payment_provider, ['xixapay', 'monnify', 'pointwave'])) {
             $updates['marketplace_payment_provider'] = $request->marketplace_payment_provider;
         }
 
@@ -1026,6 +1026,78 @@ class MarketplaceController extends Controller
             MarketplaceOrderItem::where('order_id', $order->id)->delete();
             $order->delete();
             Log::error('Xixapay all bank codes failed and no static fallback', ['last_response' => $xixaData, 'order' => $reference]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again.'], 500);
+        }
+
+        // ── POINTWAVE DYNAMIC ACCOUNT ────────────────────────────────
+        if ($paymentProvider === 'pointwave') {
+            $pwSecretKey  = env('POINTWAVE_SECRET_KEY');
+            $pwApiKey     = env('POINTWAVE_API_KEY');
+            $pwBusinessId = env('POINTWAVE_BUSINESS_ID');
+            $pwBaseUrl    = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
+
+            $pwPayload = json_encode([
+                'amount'            => (int) round($grandTotal * 100), // kobo
+                'currency'          => 'NGN',
+                'title'             => 'Marketplace Order ' . $reference,
+                'callback_url'      => url('') . '/api/marketplace/webhook/pointwave',
+                'reference'         => $reference,
+                'order_expire_time' => 1800,
+            ]);
+
+            $pwCh = curl_init();
+            curl_setopt_array($pwCh, [
+                CURLOPT_URL            => $pwBaseUrl . '/checkout/bank-transfer/create',
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $pwPayload,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $pwSecretKey,
+                    'x-business-id: ' . $pwBusinessId,
+                    'x-api-key: ' . $pwApiKey,
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+            ]);
+            $pwResult = curl_exec($pwCh);
+            $pwHttpCode = curl_getinfo($pwCh, CURLINFO_HTTP_CODE);
+            curl_close($pwCh);
+
+            $pwData = json_decode($pwResult, true);
+            Log::info('PointWave dynamic account response', ['data' => $pwData, 'order' => $reference]);
+
+            if ($pwHttpCode === 200 && ($pwData['status'] ?? '') === 'success' && !empty($pwData['account_number'])) {
+                $order->update([
+                    'payment_reference' => $reference,
+                    'pointwave_order_id' => $pwData['order_id'] ?? null,
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Order created. Complete payment.',
+                    'data' => [
+                        'payment_provider' => 'pointwave',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'pointwave_order_id' => $pwData['order_id'] ?? null,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $pwData['account_number'],
+                        'account_name' => $pwData['account_name'],
+                        'bank_name' => $pwData['bank_name'],
+                        'expires_in' => '30 minutes',
+                        'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below to complete your order.',
+                    ],
+                ]);
+            }
+
+            // PointWave failed — delete order
+            MarketplaceOrderItem::where('order_id', $order->id)->delete();
+            $order->delete();
+            Log::error('PointWave dynamic account failed', ['response' => $pwData, 'http' => $pwHttpCode]);
             return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again.'], 500);
         }
 
@@ -1554,6 +1626,42 @@ class MarketplaceController extends Controller
         }
 
         return response()->json(['status' => 'ok']);
+    }
+
+    // ─── PAYMENT: POINTWAVE WEBHOOK ───
+
+    public function pointwaveWebhook(Request $request)
+    {
+        Log::info('PointWave marketplace webhook received', ['data' => $request->all()]);
+
+        // PointWave sends reference = our order reference
+        $reference = $request->reference ?? $request->order_reference ?? null;
+        $status = strtolower($request->status ?? $request->payment_status ?? '');
+        $amount = (float) ($request->amount ?? 0);
+
+        if (!$reference) {
+            return response('success', 200)->header('Content-Type', 'text/plain');
+        }
+
+        $order = MarketplaceOrder::where('reference', $reference)->first();
+        if (!$order || $order->payment_status === 'paid') {
+            return response('success', 200)->header('Content-Type', 'text/plain');
+        }
+
+        $isPaid = in_array($status, ['success', 'successful', 'paid', 'completed']);
+        // Amount from PointWave is in kobo — convert to naira
+        $amountNaira = $amount > 1000 ? $amount / 100 : $amount;
+        $amountMatch = $amountNaira >= ($order->grand_total - 1);
+
+        if ($isPaid && $amountMatch) {
+            $this->completeOrder($order);
+            Log::info('PointWave marketplace order completed', ['reference' => $reference]);
+        } else {
+            Log::warning('PointWave webhook: payment not confirmed', ['status' => $status, 'amount' => $amountNaira, 'expected' => $order->grand_total]);
+        }
+
+        // PointWave requires plain text "success" response
+        return response('success', 200)->header('Content-Type', 'text/plain');
     }
 
     // ─── HELPERS ───

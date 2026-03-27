@@ -669,6 +669,7 @@ Route::prefix('marketplace')->group(function () {
 Route::get('marketplace/payment/callback', [App\Http\Controllers\API\MarketplaceController::class, 'paymentCallback']);
 Route::post('marketplace/webhook/monnify', [App\Http\Controllers\API\MarketplaceController::class, 'monnifyWebhook']);
 Route::post('marketplace/webhook/xixapay', [App\Http\Controllers\API\MarketplaceController::class, 'xixapayWebhook']);
+Route::post('marketplace/webhook/pointwave', [App\Http\Controllers\API\MarketplaceController::class, 'pointwaveWebhook']);
 
 // Admin Marketplace Routes
 Route::get('admin/marketplace/categories/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetCategories']);
