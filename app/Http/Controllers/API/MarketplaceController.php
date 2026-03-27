@@ -1519,7 +1519,61 @@ class MarketplaceController extends Controller
         }
 
         if ($order->payment_status === 'paid') {
-            return response()->json(['status' => 'success', 'message' => 'Payment already confirmed', 'data' => ['reference' => $order->reference, 'status' => $order->status]]);
+            return response()->json(['status' => 'success', 'message' => 'Payment already confirmed', 'data' => ['reference' => $order->reference, 'payment_status' => 'paid', 'status' => $order->status]]);
+        }
+
+        // ── Already paid via webhook ─────────────────────────────────
+        // Check if PointWave webhook already confirmed it
+        $order->refresh();
+        if ($order->payment_status === 'paid') {
+            return response()->json(['status' => 'success', 'message' => 'Payment confirmed.', 'data' => ['reference' => $order->reference, 'payment_status' => 'paid', 'status' => $order->status]]);
+        }
+
+        // ── PointWave: query order status ────────────────────────────
+        if ($order->payment_method === 'pointwave' && $order->pointwave_order_id) {
+            $pwSecretKey  = env('POINTWAVE_SECRET_KEY');
+            $pwApiKey     = env('POINTWAVE_API_KEY');
+            $pwBusinessId = env('POINTWAVE_BUSINESS_ID');
+            $pwBaseUrl    = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
+
+            $pwCh = curl_init();
+            curl_setopt_array($pwCh, [
+                CURLOPT_URL            => $pwBaseUrl . '/checkout/bank-transfer/query',
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode(['order_id' => $order->pointwave_order_id]),
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Bearer ' . $pwSecretKey,
+                    'x-business-id: ' . $pwBusinessId,
+                    'x-api-key: ' . $pwApiKey,
+                    'Content-Type: application/json',
+                ],
+            ]);
+            $pwResult = curl_exec($pwCh);
+            curl_close($pwCh);
+            $pwData = json_decode($pwResult, true);
+            $pwStatus = $pwData['data']['orderStatus'] ?? $pwData['orderStatus'] ?? null;
+            Log::info('PointWave verify query', ['order_id' => $order->pointwave_order_id, 'status' => $pwStatus]);
+
+            // PointWave status 2 = success
+            if ($pwStatus === 2 || $pwStatus === '2') {
+                $this->completeOrder($order);
+                $order->refresh();
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Payment confirmed.',
+                    'data' => ['reference' => $order->reference, 'payment_status' => 'paid', 'status' => $order->status],
+                ]);
+            }
+
+            // Not paid yet
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Payment not yet confirmed.',
+                'data' => ['reference' => $order->reference, 'payment_status' => 'pending', 'status' => $order->status],
+            ]);
+        }
         }
 
         $habukhan_key = DB::table('habukhan_key')->first();
