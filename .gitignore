@@ -23,3 +23,10 @@ yarn-error.log
 # Exclude large/generated files
 /public/build
 /webpack/
+
+# Exclude sensitive debug/dump files
+/scripts_backup/habukhan_keys_dump.json
+/scripts_backup/habukhan_key_columns.json
+/scripts_backup/settings_dump.json
+/scripts_backup/debug_output.json
+/scripts_backup/xixa_banks.json

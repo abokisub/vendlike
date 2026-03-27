@@ -780,8 +780,36 @@ SUDO_ENVIRONMENT=sandbox
 
 **⚠️ DO NOT MARK AS DONE UNTIL USER EXPLICITLY SAYS SO**
 
-**LAST UPDATED**: March 20, 2026 (Session 2 — Pre-GitHub Push)
-**CONVERSATION**: 
+**LAST UPDATED**: March 26, 2026 (Session 3 — Marketplace Checkout Fix)
+**CONVERSATION**:
+- Marketplace checkout crash fixed: `type 'Null' is not a subtype of 'Map<dynamic, dynamic>'`
+  - Root cause: Xixapay payment path returned data flat (no `data:{}` wrapper), Flutter cast `data['data'] as Map` on null → crash
+  - Fix 1 (backend): Both xixapay dynamic + static fallback responses now wrapped under `data:{}` key, consistent with Monnify path. Also unified `payment_provider` to always return `'xixapay'` (was `'xixapay_static'` for fallback)
+  - Fix 2 (Flutter): `marketplace_service.dart` `placeOrder()` now has defensive fallback — if `data['data']` is null/missing, falls back to top-level map instead of crashing
+  - Files changed: `app/Http/Controllers/API/MarketplaceController.php`, `Vendlike Mobile/lib/services/marketplace_service.dart`
+  - Pushed to GitHub ✅
+
+- Xixapay dynamic account returning empty `bankAccounts: []` (Xixapay-side issue)
+  - Root cause: `bankCode: ['29007']` (Safehaven) not provisioned for this business account on Xixapay
+  - Fix: Now tries all 3 bank codes in order — Palmpay (`20867`) → Kolomoni (`20987`) → Safehaven (`29007`)
+  - Also added `customer_id` reuse: saves Xixapay `customer_id` to `user.xixapay_customer_id` on first call, reuses it on subsequent orders (Option 1 from Xixapay docs — avoids duplicate KYC)
+  - `xixapay_customer_id` save is wrapped in try/catch (column doesn't exist yet — add migration when ready)
+  - Files changed: `app/Http/Controllers/API/MarketplaceController.php`
+  - Pushed to GitHub ✅
+
+- ⚠️ KNOWN BLOCKER: Xixapay dynamic accounts returning empty `bankAccounts` for ALL bank codes
+  - This is a Xixapay platform issue (not our code) — they confirmed customer is created but no bank account assigned
+  - Static fallback works for users who have `kolomoni_mfb` or `palmpay` column set in `user` table
+  - Users without static account get "Payment service unavailable" until Xixapay fixes their dynamic account provisioning
+  - ACTION REQUIRED: Contact Xixapay support, wait for fix — no code change needed on our end
+
+**CURRENT DB STATE** (unchanged from Session 2):
+- `sudo_card_lock = 1` (locked)
+- `transfer_lock_all = 0` (unlocked)
+- `kyc_provider = xixapay`
+- `transfer_provider = xixapay`
+- `primary_transfer_provider = xixapay`
+- `marketplace_payment_provider = xixapay` (set in settings table)
 - JAMB PIN vending system fully built and tested on sandbox
 - Marketplace system complete with Fez Delivery API + Monnify dynamic payment
 - Fez: auto delivery cost calculation, auto booking after payment, live tracking (admin + mobile)
