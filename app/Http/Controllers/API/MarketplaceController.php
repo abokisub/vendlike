@@ -103,11 +103,16 @@ class MarketplaceController extends Controller
             return response()->json(['status' => 'fail', 'message' => $validator->errors()->first()], 400);
         }
 
-        if ($request->has('name')) $category->name = $request->name;
-        if ($request->has('icon')) $category->icon = $request->icon;
-        if ($request->has('description')) $category->description = $request->description;
-        if ($request->has('sort_order')) $category->sort_order = $request->sort_order;
-        if ($request->has('is_active')) $category->is_active = (bool) $request->is_active;
+        if ($request->has('name'))
+            $category->name = $request->name;
+        if ($request->has('icon'))
+            $category->icon = $request->icon;
+        if ($request->has('description'))
+            $category->description = $request->description;
+        if ($request->has('sort_order'))
+            $category->sort_order = $request->sort_order;
+        if ($request->has('is_active'))
+            $category->is_active = (bool) $request->is_active;
 
         if ($request->hasFile('image')) {
             $category->image = $request->file('image')->store('marketplace/categories', 'public');
@@ -263,17 +268,28 @@ class MarketplaceController extends Controller
             return response()->json(['status' => 'fail', 'message' => $validator->errors()->first()], 400);
         }
 
-        if ($request->has('name')) $product->name = $request->name;
-        if ($request->has('category_id')) $product->category_id = $request->category_id;
-        if ($request->has('vendor_id')) $product->vendor_id = $request->vendor_id ?: null;
-        if ($request->has('description')) $product->description = $request->description;
-        if ($request->has('price')) $product->price = $request->price;
-        if ($request->has('discount_price')) $product->discount_price = $request->discount_price;
-        if ($request->has('stock')) $product->stock = $request->stock;
-        if ($request->has('weight')) $product->weight = $request->weight;
-        if ($request->has('is_active')) $product->is_active = (bool) $request->is_active;
-        if ($request->has('is_featured')) $product->is_featured = (bool) $request->is_featured;
-        if ($request->has('sort_order')) $product->sort_order = $request->sort_order;
+        if ($request->has('name'))
+            $product->name = $request->name;
+        if ($request->has('category_id'))
+            $product->category_id = $request->category_id;
+        if ($request->has('vendor_id'))
+            $product->vendor_id = $request->vendor_id ?: null;
+        if ($request->has('description'))
+            $product->description = $request->description;
+        if ($request->has('price'))
+            $product->price = $request->price;
+        if ($request->has('discount_price'))
+            $product->discount_price = $request->discount_price;
+        if ($request->has('stock'))
+            $product->stock = $request->stock;
+        if ($request->has('weight'))
+            $product->weight = $request->weight;
+        if ($request->has('is_active'))
+            $product->is_active = (bool) $request->is_active;
+        if ($request->has('is_featured'))
+            $product->is_featured = (bool) $request->is_featured;
+        if ($request->has('sort_order'))
+            $product->sort_order = $request->sort_order;
 
         if ($request->has('sizes')) {
             $product->sizes = $request->sizes ? array_map('trim', explode(',', $request->sizes)) : null;
@@ -342,8 +358,8 @@ class MarketplaceController extends Controller
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('reference', 'like', '%' . $request->search . '%')
-                  ->orWhere('delivery_name', 'like', '%' . $request->search . '%')
-                  ->orWhere('delivery_phone', 'like', '%' . $request->search . '%');
+                    ->orWhere('delivery_name', 'like', '%' . $request->search . '%')
+                    ->orWhere('delivery_phone', 'like', '%' . $request->search . '%');
             });
         }
 
@@ -400,8 +416,10 @@ class MarketplaceController extends Controller
             $order->status = $request->status;
         }
 
-        if ($request->has('tracking_number')) $order->tracking_number = $request->tracking_number;
-        if ($request->has('admin_note')) $order->admin_note = $request->admin_note;
+        if ($request->has('tracking_number'))
+            $order->tracking_number = $request->tracking_number;
+        if ($request->has('admin_note'))
+            $order->admin_note = $request->admin_note;
 
         $order->save();
 
@@ -568,12 +586,18 @@ class MarketplaceController extends Controller
         if (!$vendor) {
             return response()->json(['status' => 'fail', 'message' => 'Vendor not found'], 404);
         }
-        if ($request->has('name')) $vendor->name = $request->name;
-        if ($request->has('business_name')) $vendor->business_name = $request->business_name;
-        if ($request->has('phone')) $vendor->phone = $request->phone;
-        if ($request->has('email')) $vendor->email = $request->email;
-        if ($request->has('description')) $vendor->description = $request->description;
-        if ($request->has('is_active')) $vendor->is_active = (bool) $request->is_active;
+        if ($request->has('name'))
+            $vendor->name = $request->name;
+        if ($request->has('business_name'))
+            $vendor->business_name = $request->business_name;
+        if ($request->has('phone'))
+            $vendor->phone = $request->phone;
+        if ($request->has('email'))
+            $vendor->email = $request->email;
+        if ($request->has('description'))
+            $vendor->description = $request->description;
+        if ($request->has('is_active'))
+            $vendor->is_active = (bool) $request->is_active;
         $vendor->save();
         return response()->json(['status' => 'success', 'message' => 'Vendor updated', 'data' => $vendor]);
     }
@@ -627,9 +651,12 @@ class MarketplaceController extends Controller
         }
 
         $updates = [];
-        if ($request->has('marketplace_status')) $updates['marketplace_status'] = (int) $request->marketplace_status;
-        if ($request->has('marketplace_delivery_fee')) $updates['marketplace_delivery_fee'] = (float) $request->marketplace_delivery_fee;
-        if ($request->has('marketplace_delivery_mode')) $updates['marketplace_delivery_mode'] = $request->marketplace_delivery_mode;
+        if ($request->has('marketplace_status'))
+            $updates['marketplace_status'] = (int) $request->marketplace_status;
+        if ($request->has('marketplace_delivery_fee'))
+            $updates['marketplace_delivery_fee'] = (float) $request->marketplace_delivery_fee;
+        if ($request->has('marketplace_delivery_mode'))
+            $updates['marketplace_delivery_mode'] = $request->marketplace_delivery_mode;
         if ($request->has('marketplace_payment_provider') && in_array($request->marketplace_payment_provider, ['xixapay', 'monnify', 'pointwave'])) {
             $updates['marketplace_payment_provider'] = $request->marketplace_payment_provider;
         }
@@ -651,7 +678,8 @@ class MarketplaceController extends Controller
         }
 
         $categories = MarketplaceCategory::where('is_active', true)
-            ->withCount(['products' => function ($q) { $q->where('is_active', true); }])
+            ->withCount(['products' => function ($q) {
+                $q->where('is_active', true); }])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -1031,28 +1059,28 @@ class MarketplaceController extends Controller
 
         // ── POINTWAVE DYNAMIC ACCOUNT ────────────────────────────────
         if ($paymentProvider === 'pointwave') {
-            $pwSecretKey  = env('POINTWAVE_SECRET_KEY');
-            $pwApiKey     = env('POINTWAVE_API_KEY');
+            $pwSecretKey = env('POINTWAVE_SECRET_KEY');
+            $pwApiKey = env('POINTWAVE_API_KEY');
             $pwBusinessId = env('POINTWAVE_BUSINESS_ID');
-            $pwBaseUrl    = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
+            $pwBaseUrl = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
 
             $pwPayload = json_encode([
-                'amount'            => (int) round($grandTotal * 100), // kobo
-                'currency'          => 'NGN',
-                'title'             => 'Marketplace Order ' . $reference,
-                'callback_url'      => url('') . '/api/marketplace/webhook/pointwave',
-                'reference'         => $reference,
+                'amount' => (int) round($grandTotal * 100), // kobo
+                'currency' => 'NGN',
+                'title' => 'Marketplace Order ' . $reference,
+                'callback_url' => url('') . '/api/marketplace/webhook/pointwave',
+                'reference' => $reference,
                 'order_expire_time' => 1800,
             ]);
 
             $pwCh = curl_init();
             curl_setopt_array($pwCh, [
-                CURLOPT_URL            => $pwBaseUrl . '/checkout/bank-transfer/create',
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => $pwPayload,
+                CURLOPT_URL => $pwBaseUrl . '/checkout/bank-transfer/create',
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $pwPayload,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
-                CURLOPT_HTTPHEADER     => [
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTPHEADER => [
                     'Authorization: Bearer ' . $pwSecretKey,
                     'x-business-id: ' . $pwBusinessId,
                     'x-api-key: ' . $pwApiKey,
@@ -1245,6 +1273,304 @@ class MarketplaceController extends Controller
         }
 
         return response()->json(['status' => 'success', 'data' => $order]);
+    }
+
+    public function repayOrder(Request $request, $reference)
+    {
+        $user_id = $this->verifyapptoken($request->header('Authorization'));
+        if (!$user_id) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+
+        $user = DB::table('user')->where('id', $user_id)->first();
+        if (!$user) {
+            return response()->json(['status' => 'fail', 'message' => 'User not found'], 404);
+        }
+
+        $order = MarketplaceOrder::with('items')
+            ->where('user_id', $user_id)
+            ->where('reference', $reference)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['status' => 'fail', 'message' => 'Order not found'], 404);
+        }
+
+        if ($order->payment_status === 'paid') {
+            return response()->json(['status' => 'fail', 'message' => 'Order is already paid.'], 400);
+        }
+        if (in_array(strtolower($order->status), ['cancelled', 'delivered'])) {
+            return response()->json(['status' => 'fail', 'message' => 'Order cannot be paid for in its current state.'], 400);
+        }
+
+        $grandTotal = (float) $order->grand_total;
+        $orderItemsCount = $order->items->count();
+
+        // Use current system provider or fallback to Xixapay
+        $paymentProvider = DB::table('settings')->value('marketplace_payment_provider') ?? 'xixapay';
+
+        // Update the order's payment method so it reflects how they are paying NOW
+        $order->update(['payment_method' => $paymentProvider]);
+
+        if ($paymentProvider === 'xixapay') {
+            $xixa = config('services.xixapay');
+            $bankCodesToTry = [['20867'], ['20987'], ['29007']];
+            $xixaData = null;
+            $xixaResponse = null;
+            $existingCustomerId = $user->xixapay_customer_id ?? null;
+
+            foreach ($bankCodesToTry as $bankCode) {
+                if ($existingCustomerId) {
+                    $xixaPayload = [
+                        'customer_id' => $existingCustomerId,
+                        'bankCode' => $bankCode,
+                        'businessId' => $xixa['business_id'],
+                        'accountType' => 'dynamic',
+                        'amount' => $grandTotal,
+                        'externalReference' => $reference,
+                        'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
+                    ];
+                } else {
+                    $xixaPayload = [
+                        'email' => $user->email,
+                        'name' => $user->name ?? $user->username,
+                        'phoneNumber' => $user->phone ?? '08000000000',
+                        'bankCode' => $bankCode,
+                        'businessId' => $xixa['business_id'],
+                        'accountType' => 'dynamic',
+                        'amount' => $grandTotal,
+                        'externalReference' => $reference,
+                        'callbackUrl' => url('') . '/api/marketplace/webhook/xixapay',
+                    ];
+                }
+
+                $xixaResponse = \Illuminate\Support\Facades\Http::timeout(30)->withHeaders([
+                    'Authorization' => $xixa['authorization'],
+                    'api-key' => $xixa['api_key'],
+                    'Content-Type' => 'application/json',
+                ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $xixaPayload);
+
+                $xixaData = $xixaResponse->json();
+
+                if (!empty($xixaData['customer']['customer_id']) && !$existingCustomerId) {
+                    try {
+                        DB::table('user')->where('id', $user_id)->update([
+                            'xixapay_customer_id' => $xixaData['customer']['customer_id'],
+                        ]);
+                        $existingCustomerId = $xixaData['customer']['customer_id'];
+                    } catch (\Exception $e) {
+                    }
+                }
+
+                if ($xixaResponse->successful() && !empty($xixaData['bankAccounts'])) {
+                    break;
+                }
+            }
+
+            if ($xixaResponse->successful() && !empty($xixaData['bankAccounts'])) {
+                $account = $xixaData['bankAccounts'][0];
+                $order->update(['payment_reference' => $reference]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Please complete your payment.',
+                    'data' => [
+                        'payment_provider' => 'xixapay',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $account['accountNumber'],
+                        'account_name' => $account['accountName'],
+                        'bank_name' => $account['bankName'],
+                        'bank_code' => $account['bankCode'],
+                        'expires_in' => '30 minutes',
+                        'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below.',
+                    ],
+                ]);
+            }
+
+            // Fallback to static
+            $staticAccount = $user->kolomoni_mfb ?? $user->palmpay ?? null;
+            $staticBank = $user->kolomoni_mfb ? 'Kolomoni MFB' : ($user->palmpay ? 'PalmPay' : null);
+
+            if ($staticAccount) {
+                $order->update(['payment_reference' => $reference]);
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Please complete your payment.',
+                    'data' => [
+                        'payment_provider' => 'xixapay',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $staticAccount,
+                        'account_name' => 'VendLike - ' . strtoupper($user->username),
+                        'bank_name' => $staticBank,
+                        'expires_in' => '60 minutes',
+                        'message' => 'Transfer EXACTLY ₦' . number_format($grandTotal, 2) . ' to the account below. Use order ref ' . $reference . ' as narration.',
+                        'important' => 'Transfer the exact amount. Admin will verify and confirm your order.',
+                    ],
+                ]);
+            }
+
+            Log::error('Xixapay repay all bank codes failed and no static fallback', ['order' => $reference]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again later.'], 500);
+        }
+
+        if ($paymentProvider === 'pointwave') {
+            $pwSecretKey = env('POINTWAVE_SECRET_KEY');
+            $pwApiKey = env('POINTWAVE_API_KEY');
+            $pwBusinessId = env('POINTWAVE_BUSINESS_ID');
+            $pwBaseUrl = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
+
+            $pwPayload = json_encode([
+                'amount' => (int) round($grandTotal * 100),
+                'currency' => 'NGN',
+                'title' => 'Marketplace Order ' . $reference,
+                'callback_url' => url('') . '/api/marketplace/webhook/pointwave',
+                'reference' => $reference,
+                'order_expire_time' => 1800,
+            ]);
+
+            $pwCh = curl_init();
+            curl_setopt_array($pwCh, [
+                CURLOPT_URL => $pwBaseUrl . '/checkout/bank-transfer/create',
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $pwPayload,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $pwSecretKey,
+                    'x-business-id: ' . $pwBusinessId,
+                    'x-api-key: ' . $pwApiKey,
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+            ]);
+            $pwResult = curl_exec($pwCh);
+            $pwHttpCode = curl_getinfo($pwCh, CURLINFO_HTTP_CODE);
+            curl_close($pwCh);
+
+            $pwData = json_decode($pwResult, true);
+            $pwPayload = $pwData['data'] ?? $pwData;
+
+            if ($pwHttpCode === 200 && ($pwPayload['status'] ?? '') === 'success' && !empty($pwPayload['account_number'])) {
+                $order->update([
+                    'payment_reference' => $reference,
+                    'pointwave_order_id' => $pwPayload['order_id'] ?? null,
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Please complete your payment.',
+                    'data' => [
+                        'payment_provider' => 'pointwave',
+                        'payment_type' => 'bank_transfer',
+                        'reference' => $reference,
+                        'order_reference' => $reference,
+                        'order_id' => $order->id,
+                        'pointwave_order_id' => $pwPayload['order_id'] ?? null,
+                        'amount' => $grandTotal,
+                        'grand_total' => $grandTotal,
+                        'account_number' => $pwPayload['account_number'],
+                        'account_name' => $pwPayload['account_name'],
+                        'bank_name' => $pwPayload['bank_name'],
+                        'expires_in' => '30 minutes',
+                        'message' => 'Transfer exactly ₦' . number_format($grandTotal, 2) . ' to the account below.',
+                    ],
+                ]);
+            }
+
+            Log::error('PointWave dynamic account failed during repay', ['response' => $pwData, 'http' => $pwHttpCode]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again later.'], 500);
+        }
+
+        // Monnify
+        $habukhan_key = DB::table('habukhan_key')->first();
+        $post_data = [
+            'amount' => $grandTotal,
+            'customerName' => $user->name ?? $user->username,
+            'customerEmail' => $user->email,
+            'paymentReference' => $reference,
+            'paymentDescription' => 'Marketplace Order - ' . $orderItemsCount . ' item(s)',
+            'currencyCode' => 'NGN',
+            'contractCode' => $habukhan_key->mon_con_num,
+            'redirectUrl' => url('') . '/api/marketplace/payment/callback',
+            'paymentMethods' => ['CARD', 'ACCOUNT_TRANSFER', 'USSD', 'PHONE_NUMBER'],
+            'metadata' => [
+                'order_reference' => $reference,
+                'user_id' => $user_id,
+            ],
+        ];
+
+        $url = 'https://api.monnify.com/api/v1/merchant/transactions/init-transaction';
+
+        $authCh = curl_init();
+        curl_setopt_array($authCh, [
+            CURLOPT_URL => 'https://api.monnify.com/api/v1/auth/login',
+            CURLOPT_POST => 1,
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Basic ' . base64_encode($habukhan_key->mon_app_key . ':' . $habukhan_key->mon_sk_key),
+            ],
+        ]);
+        $authResult = json_decode(curl_exec($authCh), true);
+        curl_close($authCh);
+
+        $accessToken = $authResult['responseBody']['accessToken'] ?? null;
+        if (!$accessToken) {
+            Log::error('Monnify auth failed for marketplace repay', ['response' => $authResult]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment service unavailable. Please try again later.'], 500);
+        }
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $headers = [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json',
+        ];
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $get_res = curl_exec($ch);
+        curl_close($ch);
+        $monnifyResponse = json_decode($get_res, true);
+
+        if ($monnifyResponse && isset($monnifyResponse['responseBody']['checkoutUrl'])) {
+            $monnifyRef = $monnifyResponse['responseBody']['transactionReference'];
+            $order->update([
+                'monnify_reference' => $monnifyRef,
+                'payment_reference' => $reference,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Please complete your payment.',
+                'data' => [
+                    'reference' => $reference,
+                    'grand_total' => $grandTotal,
+                    'checkout_url' => $monnifyResponse['responseBody']['checkoutUrl'],
+                    'monnify_reference' => $monnifyRef,
+                    'payment_method' => 'monnify',
+                    'monnify_api_key' => $habukhan_key->mon_app_key,
+                    'monnify_contract_code' => $habukhan_key->mon_con_num,
+                    'customer_name' => $user->name ?? $user->username,
+                    'customer_email' => $user->email,
+                ],
+            ]);
+        } else {
+            Log::error('Monnify init failed for marketplace repay', ['response' => $monnifyResponse]);
+            return response()->json(['status' => 'fail', 'message' => 'Payment initialization failed. Please try again later.'], 500);
+        }
     }
 
     // ─── MOBILE: DELIVERY COST ───
@@ -1531,19 +1857,19 @@ class MarketplaceController extends Controller
 
         // ── PointWave: query order status ────────────────────────────
         if ($order->payment_method === 'pointwave' && $order->pointwave_order_id) {
-            $pwSecretKey  = env('POINTWAVE_SECRET_KEY');
-            $pwApiKey     = env('POINTWAVE_API_KEY');
+            $pwSecretKey = env('POINTWAVE_SECRET_KEY');
+            $pwApiKey = env('POINTWAVE_API_KEY');
             $pwBusinessId = env('POINTWAVE_BUSINESS_ID');
-            $pwBaseUrl    = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
+            $pwBaseUrl = env('POINTWAVE_BASE_URL', 'https://app.pointwave.ng/api/v1');
 
             $pwCh = curl_init();
             curl_setopt_array($pwCh, [
-                CURLOPT_URL            => $pwBaseUrl . '/checkout/bank-transfer/query',
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => json_encode(['order_id' => $order->pointwave_order_id]),
+                CURLOPT_URL => $pwBaseUrl . '/checkout/bank-transfer/query',
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode(['order_id' => $order->pointwave_order_id]),
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 15,
-                CURLOPT_HTTPHEADER     => [
+                CURLOPT_TIMEOUT => 15,
+                CURLOPT_HTTPHEADER => [
                     'Authorization: Bearer ' . $pwSecretKey,
                     'x-business-id: ' . $pwBusinessId,
                     'x-api-key: ' . $pwApiKey,
@@ -1726,7 +2052,8 @@ class MarketplaceController extends Controller
      */
     private function completeOrder(MarketplaceOrder $order)
     {
-        if ($order->payment_status === 'paid') return;
+        if ($order->payment_status === 'paid')
+            return;
 
         try {
             DB::beginTransaction();
@@ -1786,7 +2113,9 @@ class MarketplaceController extends Controller
             $user = DB::table('user')->where('id', $order->user_id)->first();
             if ($user) {
                 \App\Helpers\NotificationHelper::sendTransactionNotification(
-                    $user, 'debit', $order->grand_total,
+                    $user,
+                    'debit',
+                    $order->grand_total,
                     'Marketplace Order - ' . $items->count() . ' item(s)',
                     $order->reference
                 );
@@ -1904,7 +2233,8 @@ class MarketplaceController extends Controller
             curl_close($ch);
 
             $accessToken = $authResult['responseBody']['accessToken'] ?? null;
-            if (!$accessToken) return null;
+            if (!$accessToken)
+                return null;
 
             // Verify transaction
             $ch = curl_init();
