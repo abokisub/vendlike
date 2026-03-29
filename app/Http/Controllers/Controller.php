@@ -121,7 +121,7 @@ class Controller extends BaseController
             $recentTokens = $user->tokens()
                 ->where('name', 'web-session')
                 ->orderBy('created_at', 'desc')
-                ->skip(3)
+                ->offset(3)->limit(1000)
                 ->pluck('id');
 
             if ($recentTokens->isNotEmpty()) {
