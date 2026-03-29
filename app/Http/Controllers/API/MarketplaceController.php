@@ -166,10 +166,6 @@ class MarketplaceController extends Controller
 
         $products = $query->orderBy('sort_order')->orderByDesc('created_at')->get();
 
-        // Append image URLs
-        $products->each(function ($p) {
-            $p->image_urls = $p->image_urls;
-        });
 
         return response()->json(['status' => 'success', 'data' => $products]);
     }
@@ -234,7 +230,6 @@ class MarketplaceController extends Controller
         ]);
 
         $product->load(['category', 'vendor']);
-        $product->image_urls = $product->image_urls;
 
         return response()->json(['status' => 'success', 'message' => 'Product created', 'data' => $product]);
     }
@@ -317,7 +312,6 @@ class MarketplaceController extends Controller
 
         $product->save();
         $product->load(['category', 'vendor']);
-        $product->image_urls = $product->image_urls;
 
         return response()->json(['status' => 'success', 'message' => 'Product updated', 'data' => $product]);
     }
@@ -678,8 +672,11 @@ class MarketplaceController extends Controller
         }
 
         $categories = MarketplaceCategory::where('is_active', true)
-            ->withCount(['products' => function ($q) {
-                $q->where('is_active', true); }])
+            ->withCount([
+                'products' => function ($q) {
+                    $q->where('is_active', true);
+                }
+            ])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()

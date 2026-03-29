@@ -117,11 +117,11 @@ class Controller extends BaseController
     {
         $user = User::find($req);
         if ($user) {
-            // Keep only the 10 most recent web session tokens to allow multi-device support
+            // Keep only the 50 most recent web session tokens to allow multi-device support
             $recentTokens = $user->tokens()
                 ->where('name', 'web-session')
                 ->orderBy('created_at', 'desc')
-                ->offset(10)->limit(1000)
+                ->offset(50)->limit(1000)
                 ->pluck('id');
 
             if ($recentTokens->isNotEmpty()) {
@@ -139,11 +139,11 @@ class Controller extends BaseController
     {
         $user = User::find($key);
         if ($user) {
-            // Keep only the 10 most recent mobile app tokens to allow multi-device support
+            // Keep only the 50 most recent mobile app tokens to allow multi-device support
             $recentTokens = $user->tokens()
                 ->where('name', 'mobile-app')
                 ->orderBy('created_at', 'desc')
-                ->offset(10)->limit(1000)
+                ->offset(50)->limit(1000)
                 ->pluck('id');
 
             if ($recentTokens->isNotEmpty()) {

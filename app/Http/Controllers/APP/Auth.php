@@ -15,6 +15,39 @@ use App\Services\FirebaseService;
 
 class Auth extends Controller
 {
+    /**
+     * Resolve user from Authorization header with Sanctum support
+     */
+    private function resolveUserFromHeader($request)
+    {
+        $authHeader = $request->header('Authorization');
+        if (!$authHeader)
+            return null;
+
+        // Strip Bearer/Token prefix if present
+        if (strpos($authHeader, 'Token ') === 0)
+            $authHeader = substr($authHeader, 6);
+        elseif (strpos($authHeader, 'Bearer ') === 0)
+            $authHeader = substr($authHeader, 7);
+
+        // Try legacy columns first
+        $user = DB::table('user')
+            ->where('apikey', $authHeader)
+            ->orWhere('app_key', $authHeader)
+            ->orWhere('habukhan_key', $authHeader)
+            ->first();
+
+        // Fallback to Sanctum
+        if (!$user && strpos($authHeader, '|') !== false) {
+            $userId = $this->verifyapptoken($authHeader);
+            if ($userId) {
+                $user = DB::table('user')->where('id', $userId)->first();
+            }
+        }
+
+        return $user;
+    }
+
     public function AppLogin(Request $request)
     {
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
@@ -29,8 +62,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 $check_system = User::where(function ($query) use ($request) {
                     $query->orWhere('username', $request->username)
                         ->orWhere('phone', $request->username)
@@ -101,14 +133,14 @@ class Auth extends Controller
                         'palmpay' => $user->palmpay,
 
                         'account_number' => ($active_default == 'wema') ? $user->paystack_account :
-                        (($active_default == 'monnify') ? $moniepoint_acc :
-                        (($active_default == 'xixapay') ? $user->palmpay :
-                        ($active_default == 'palmpay' ? $user->palmpay : null))),
+                            (($active_default == 'monnify') ? $moniepoint_acc :
+                                (($active_default == 'xixapay') ? $user->palmpay :
+                                    ($active_default == 'palmpay' ? $user->palmpay : null))),
 
                         'bank_name' => ($active_default == 'wema') ? 'Wema Bank' :
-                        (($active_default == 'monnify') ? 'Moniepoint' :
-                        (($active_default == 'xixapay') ? 'PalmPay' :
-                        ($active_default == 'palmpay' ? 'PalmPay' : null))),
+                            (($active_default == 'monnify') ? 'Moniepoint' :
+                                (($active_default == 'xixapay') ? 'PalmPay' :
+                                    ($active_default == 'palmpay' ? 'PalmPay' : null))),
                         'address' => $user->address,
                         'dob' => $user->dob,
                         'bvn' => $user->bvn,
@@ -160,8 +192,7 @@ class Auth extends Controller
                                 try {
                                     $notificationService = new \App\Services\NotificationService();
                                     $notificationService->sendLoginNotification($user);
-                                }
-                                catch (\Exception $e) {
+                                } catch (\Exception $e) {
                                     \Log::warning('Login notification failed: ' . $e->getMessage());
                                 }
                             }
@@ -171,20 +202,17 @@ class Auth extends Controller
                                 'user' => $user_details,
                                 'token' => $this->generateapptoken($user->id)
                             ]);
-                        }
-                        else if ($user->status == 2) {
+                        } else if ($user->status == 2) {
                             return response()->json([
                                 'status' => 403,
                                 'message' => $user->username . ' Your Account Has Been Banned'
                             ])->setStatusCode(403);
-                        }
-                        else if ($user->status == 3) {
+                        } else if ($user->status == 3) {
                             return response()->json([
                                 'status' => 403,
                                 'message' => $user->username . ' Your Account Has Been Deactivated'
                             ])->setStatusCode(403);
-                        }
-                        else if ($user->status == 0) {
+                        } else if ($user->status == 0) {
                             $use_core = $this->core();
                             if ($use_core && !$use_core->is_verify_email) {
                                 // Auto-verify and login
@@ -217,8 +245,7 @@ class Auth extends Controller
                             ];
                             try {
                                 MailController::send_mail($email_data, 'email.verify');
-                            }
-                            catch (\Throwable $e) {
+                            } catch (\Throwable $e) {
                                 \Log::error('OTP Mail Error: ' . $e->getMessage());
                             }
 
@@ -228,30 +255,26 @@ class Auth extends Controller
                                 'user' => $user_details,
                                 'token' => $this->generateapptoken($user->id),
                             ]);
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'status' => 403,
                                 'message' => 'System is unable to verify user'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 403,
                             'message' => $request->check_status == 'habukhan_secure_check' ? 'Incorrect Transaction Pin' : 'Invalid Password Note Password is Case Sensitive'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 403,
                         'message' => 'Invalid Username and Password'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -259,19 +282,7 @@ class Auth extends Controller
     }
     public function AppVerify(Request $request)
     {
-        $authHeader = $request->header('Authorization');
-        if (strpos($authHeader, 'Token ') === 0) {
-            $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
-            $authHeader = substr($authHeader, 7);
-        }
-        $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
-        // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
-        if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
-        }
+        $user = $this->resolveUserFromHeader($request);
         if ($user) {
             $validator = Validator::make($request->all(), [
                 'otp' => 'required|string',
@@ -282,8 +293,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 0])->count() == 1) {
                     $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 0])->first();
                     if ($user->otp == $request->otp) {
@@ -306,23 +316,20 @@ class Auth extends Controller
                             'status' => 'success',
                             'message' => 'account verify'
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 403,
                             'message' => 'Invalid OTP'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 505,
                         'message' => 'Account Expired'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -331,19 +338,7 @@ class Auth extends Controller
 
     public function DeleteUserAccountNot(Request $request)
     {
-        $authHeader = $request->header('Authorization');
-        if (strpos($authHeader, 'Token ') === 0) {
-            $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
-            $authHeader = substr($authHeader, 7);
-        }
-        $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
-        // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
-        if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
-        }
+        $user = $this->resolveUserFromHeader($request);
         if ($user) {
             $validator = Validator::make($request->all(), [
                 'app_key' => 'required'
@@ -353,8 +348,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->count() == 1) {
 
                     $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
@@ -385,15 +379,13 @@ class Auth extends Controller
                         'status' => 'status',
                         'message' => 'sent'
                     ]);
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'expired'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -401,19 +393,7 @@ class Auth extends Controller
     }
     public function ResendOtp(Request $request)
     {
-        $authHeader = $request->header('Authorization');
-        if (strpos($authHeader, 'Token ') === 0) {
-            $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
-            $authHeader = substr($authHeader, 7);
-        }
-        $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
-        // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
-        if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
-        }
+        $user = $this->resolveUserFromHeader($request);
         if ($user) {
             $validator = Validator::make($request->all(), [
                 'app_key' => 'required'
@@ -423,8 +403,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 0])->count() == 1) {
 
 
@@ -453,15 +432,13 @@ class Auth extends Controller
                         'status' => 'status',
                         'message' => 'New OTP Resent to Your Email'
                     ]);
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'expired'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -471,19 +448,7 @@ class Auth extends Controller
     public function Signup(Request $request)
     {
         set_time_limit(300); // Increase timeout for sequential API calls
-        $authHeader = $request->header('Authorization');
-        if (strpos($authHeader, 'Token ') === 0) {
-            $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
-            $authHeader = substr($authHeader, 7);
-        }
-        $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
-        // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
-        if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
-        }
+        $user = $this->resolveUserFromHeader($request);
         if ($user) {
             $validator = validator::make($request->all(), [
                 'name' => 'required|max:199|min:8',
@@ -524,28 +489,24 @@ class Auth extends Controller
                     'message' => $validator->errors()->first(),
                     'status' => 403
                 ])->setStatusCode(403);
-            }
-            else if (substr($request->phone, 0, 1) != '0') {
+            } else if (substr($request->phone, 0, 1) != '0') {
                 return response()->json([
                     'message' => 'Invalid Phone Number',
                     'status' => 403
                 ])->setStatusCode(403);
-            }
-            else
+            } else
                 if ($request->ref != null && $check_ref == 0) {
                     return response()->json([
                         'message' => 'Invalid Referral Username You can Leave the referral Box Empty',
                         'status' => '403'
                     ])->setStatusCode(403);
-                }
-                else if ($request->pin != null && strlen((string)$request->pin) != 4) {
+                } else if ($request->pin != null && strlen((string) $request->pin) != 4) {
                     return response()->json([
                         'message' => 'Transaction Pin Must Be 4 Digits',
                         'status' => '403'
                     ])->setStatusCode(403);
 
-                }
-                else {
+                } else {
                     $user = new User();
                     $user->name = $request->name;
                     $user->username = $request->username;
@@ -603,32 +564,28 @@ class Auth extends Controller
                         try {
                             if ($xixapay_enabled && ($user->kolomoni_mfb == null || $user->palmpay == null))
                                 $this->xixapay_account($user->username);
-                        }
-                        catch (\Exception $e) {
+                        } catch (\Exception $e) {
                             \Log::error("Signup Xixapay Error: " . $e->getMessage());
                         }
 
                         try {
                             if ($monnify_enabled && ($user->paystack_account == null || DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->count() == 0))
                                 $this->monnify_account($user->username);
-                        }
-                        catch (\Exception $e) {
+                        } catch (\Exception $e) {
                             \Log::error("Signup Monnify Error: " . $e->getMessage());
                         }
 
                         try {
                             if ($palmpay_enabled && ($user->palmpay == null || $user->opay == null))
                                 $this->paymentpoint_account($user->username);
-                        }
-                        catch (\Exception $e) {
+                        } catch (\Exception $e) {
                             \Log::error("Signup PaymentPoint Error: " . $e->getMessage());
                         }
 
                         try {
                             if ($user->paystack_account == null)
                                 $this->paystack_account($user->username);
-                        }
-                        catch (\Exception $e) {
+                        } catch (\Exception $e) {
                             \Log::error("Signup Paystack Error: " . $e->getMessage());
                         }
 
@@ -656,14 +613,14 @@ class Auth extends Controller
                             // Polyfill for Frontend 'Generating...' issue
                             // Polyfill for Frontend 'Generating...' issue
                             'account_number' => ($active_default == 'wema') ? $user->paystack_account :
-                            (($active_default == 'monnify') ? $moniepoint_acc :
-                            (($active_default == 'xixapay') ? $user->palmpay :
-                            ($active_default == 'palmpay' ? $user->palmpay : null))),
+                                (($active_default == 'monnify') ? $moniepoint_acc :
+                                    (($active_default == 'xixapay') ? $user->palmpay :
+                                        ($active_default == 'palmpay' ? $user->palmpay : null))),
 
                             'bank_name' => ($active_default == 'wema') ? 'Wema Bank' :
-                            (($active_default == 'monnify') ? 'Moniepoint' :
-                            (($active_default == 'xixapay') ? 'PalmPay' :
-                            ($active_default == 'palmpay' ? 'PalmPay' : null))),
+                                (($active_default == 'monnify') ? 'Moniepoint' :
+                                    (($active_default == 'xixapay') ? 'PalmPay' :
+                                        ($active_default == 'palmpay' ? 'PalmPay' : null))),
                             'address' => $user->address,
                             'dob' => $user->dob,
                             'bvn' => $user->bvn,
@@ -715,8 +672,7 @@ class Auth extends Controller
                                     'token' => $token,
                                     'user' => $user_details
                                 ]);
-                            }
-                            else {
+                            } else {
                                 $data = [
                                     'status' => 1
                                 ];
@@ -747,8 +703,7 @@ class Auth extends Controller
                                     'user' => $user_details
                                 ]);
                             }
-                        }
-                        else {
+                        } else {
                             $data = [
                                 'status' => 1,
                             ];
@@ -773,18 +728,16 @@ class Auth extends Controller
                                 'user' => $user_details
                             ]);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json(
-                        [
-                            'status' => 403,
-                            'message' => 'Unable to Register User Please Try Again Later',
-                        ]
+                            [
+                                'status' => 403,
+                                'message' => 'Unable to Register User Please Try Again Later',
+                            ]
                         )->setStatusCode(403);
                     }
                 }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -795,15 +748,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $validator = Validator::make($request->all(), [
@@ -815,8 +767,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->count() == 1) {
                     $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
                     $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->first();
@@ -880,14 +831,14 @@ class Auth extends Controller
                         'palmpay' => $user->palmpay,
 
                         'account_number' => ($active_default == 'wema') ? $user->paystack_account :
-                        (($active_default == 'monnify') ? $moniepoint_acc :
-                        (($active_default == 'xixapay') ? $user->palmpay :
-                        ($active_default == 'palmpay' ? $user->palmpay : null))),
+                            (($active_default == 'monnify') ? $moniepoint_acc :
+                                (($active_default == 'xixapay') ? $user->palmpay :
+                                    ($active_default == 'palmpay' ? $user->palmpay : null))),
 
                         'bank_name' => ($active_default == 'wema') ? 'Wema Bank' :
-                        (($active_default == 'monnify') ? 'Moniepoint' :
-                        (($active_default == 'xixapay') ? 'PalmPay' :
-                        ($active_default == 'palmpay' ? 'PalmPay' : null))),
+                            (($active_default == 'monnify') ? 'Moniepoint' :
+                                (($active_default == 'xixapay') ? 'PalmPay' :
+                                    ($active_default == 'palmpay' ? 'PalmPay' : null))),
                         'address' => $user->address,
                         'dob' => $user->dob,
                         'bvn' => $user->bvn,
@@ -935,49 +886,42 @@ class Auth extends Controller
                                 'user' => $user_details,
                                 'token' => $user->app_key
                             ]);
-                        }
-                        else if ($user->status == 2) {
+                        } else if ($user->status == 2) {
                             return response()->json([
                                 'status' => 403,
                                 'message' => $user->username . ' Your Account Has Been Banned'
                             ])->setStatusCode(403);
-                        }
-                        else if ($user->status == 3) {
+                        } else if ($user->status == 3) {
                             return response()->json([
                                 'status' => 403,
                                 'message' => $user->username . ' Your Account Has Been Deactivated'
                             ])->setStatusCode(403);
-                        }
-                        else if ($user->status == 0) {
+                        } else if ($user->status == 0) {
                             return response()->json([
                                 'status' => 'unverify',
                                 'message' => $user->username . ' Your Account Not Yet verified',
                                 'user' => $user_details,
                                 'token' => $this->generateapptoken($user->id),
                             ]);
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'status' => 403,
                                 'message' => 'System is unable to verify user'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 403,
                             'message' => 'Invalid Password Note Password is Case Sensitive'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'expired'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -988,8 +932,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
 
@@ -1000,27 +943,14 @@ class Auth extends Controller
             ->orWhere('habukhan_key', $authHeader)
             ->first();
 
-
-
-        // Polyfill: Backend expects 'app_key', but mobile app might send 'token' or 'user_id'
-        if (!$request->has('app_key')) {
-            if ($request->has('token')) {
-                $request->merge(['app_key' => $request->token]);
-            }
-            elseif ($request->has('user_id')) {
-                $request->merge(['app_key' => $request->user_id]);
-            }
-        }
-
-        // If app_key is missing but we have a user from header, use that user's app_key or id
-        if (!$request->has('app_key') && $user) {
-            $request->merge(['app_key' => $user->app_key ?? $user->id]);
-        }
-
-        // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
+        // Fallback: If legacy lookup fails but we have a Sanctum token, resolve user via verifyapptoken
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            $userId = $this->verifyapptoken($authHeader);
+            if ($userId) {
+                $user = DB::table('user')->where('id', $userId)->first();
+                // Ensure authHeader matches the found user's apikey for subsequent logic if needed,
+                // but since we found the user, we can proceed.
+            }
         }
         if ($user) {
             $user_info = $user;
@@ -1108,7 +1038,7 @@ class Auth extends Controller
                 $user = DB::table('user')->where(['id' => $user->id])->first();
                 $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
                 // Get conversion wallet balances using User model methods
-                $userModel = \App\Models\User::find($user->id);
+                $userModel = User::find($user->id);
                 $a2cashBalance = $userModel ? $userModel->getA2CashBalance() : 0;
                 $giftCardBalance = $userModel ? $userModel->getGiftCardBalance() : 0;
 
@@ -1146,16 +1076,16 @@ class Auth extends Controller
                     'religion' => $user->religion,
 
                     'account_number' => ($active_default == 'pointwave') ? $user->pointwave_account_number :
-                    (($active_default == 'wema') ? $user->paystack_account :
-                    (($active_default == 'monnify') ? $moniepoint_acc :
-                    (($active_default == 'xixapay') ? $user->palmpay :
-                    (($active_default == 'palmpay') ? $user->palmpay : null)))),
+                        (($active_default == 'wema') ? $user->paystack_account :
+                            (($active_default == 'monnify') ? $moniepoint_acc :
+                                (($active_default == 'xixapay') ? $user->palmpay :
+                                    (($active_default == 'palmpay') ? $user->palmpay : null)))),
 
                     'bank_name' => ($active_default == 'pointwave') ? ($user->pointwave_bank_name ?? 'PointWave Bank') :
-                    (($active_default == 'wema') ? 'Wema Bank' :
-                    (($active_default == 'monnify') ? 'Moniepoint' :
-                    (($active_default == 'xixapay') ? 'PalmPay' :
-                    (($active_default == 'palmpay') ? 'PalmPay' : null)))),
+                        (($active_default == 'wema') ? 'Wema Bank' :
+                            (($active_default == 'monnify') ? 'Moniepoint' :
+                                (($active_default == 'xixapay') ? 'PalmPay' :
+                                    (($active_default == 'palmpay') ? 'PalmPay' : null)))),
                     'address' => $user->address,
                     'webhook' => $user->webhook,
                     'about' => $user->about,
@@ -1177,11 +1107,9 @@ class Auth extends Controller
                     if ($check_gb == 'MB') {
                         $mb = rtrim($plans, "MB");
                         $gb = $mb / 1024;
-                    }
-                    elseif ($check_gb == 'GB') {
+                    } elseif ($check_gb == 'GB') {
                         $gb = rtrim($plans, "GB");
-                    }
-                    elseif ($check_gb == 'TB') {
+                    } elseif ($check_gb == 'TB') {
                         $tb = rtrim($plans, 'TB');
                         $gb = ceil($tb * 1020);
                     }
@@ -1189,8 +1117,7 @@ class Auth extends Controller
                 }
                 if ($total_gb >= 1024) {
                     $calculate_gb = $total_gb / 1024 . 'TB';
-                }
-                else {
+                } else {
                     $calculate_gb = $total_gb . 'GB';
                 }
 
@@ -1208,8 +1135,7 @@ class Auth extends Controller
                     'system_locks' => DB::table('system_locks')->get(['feature_key', 'is_locked']),
                     'notif' => DB::table('notif')->where(['username' => $user->username, 'habukhan' => 0])->count()
                 ]);
-            }
-            else if ($user_info && $user_info->status == 0) {
+            } else if ($user_info && $user_info->status == 0) {
                 $user = $user_info;
                 $otp = random_int(1000, 9999);
                 $data = ['otp' => $otp];
@@ -1228,8 +1154,7 @@ class Auth extends Controller
                 ];
                 try {
                     MailController::send_mail($email_data, 'email.verify');
-                }
-                catch (\Throwable $e) {
+                } catch (\Throwable $e) {
                     \Log::error('OTP Mail Error (APPLOAD): ' . $e->getMessage());
                 }
 
@@ -1245,14 +1170,12 @@ class Auth extends Controller
                     ],
                     'referral_count' => DB::table('user')->where(['ref' => $user->username])->count(),
                 ]);
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'APP Server Down',
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1263,8 +1186,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1274,8 +1196,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
 
@@ -1284,8 +1206,7 @@ class Auth extends Controller
                 'setting' => $this->core(),
                 'habukhan_key' => DB::table('habukhan_key')->select('mon_con_num', 'mon_app_key', 'bank_name', 'account_number', 'account_name')->first(),
             ]);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1296,8 +1217,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1307,8 +1227,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (DB::table('user')->where(['id' => $this->verifyapptoken($request->user_id), 'status' => 1])->count() == 1) {
@@ -1324,17 +1244,16 @@ class Auth extends Controller
                     curl_setopt(
                         $ch,
                         CURLOPT_HTTPHEADER,
-                    [
-                        "Authorization: Basic " . $base_monnify,
-                    ]
+                        [
+                            "Authorization: Basic " . $base_monnify,
+                        ]
                     );
                     $json = curl_exec($ch);
                     curl_close($ch);
                     $result = json_decode($json, true);
                     if (isset($result['responseBody']['accessToken'])) {
                         $accessToken = $result['responseBody']['accessToken'];
-                    }
-                    else {
+                    } else {
                         $accessToken = null;
                     }
                     $curl = curl_init();
@@ -1391,40 +1310,35 @@ class Auth extends Controller
                                         $user->app_token,
                                         config('app.name'),
                                         'Account Has Been Credited By Monnify ATM (APP) ₦' . number_format($credit, 2),
-                                    [
-                                        'type' => 'transaction',
-                                        'action' => 'deposit',
-                                        'channel_id' => 'high_importance_channel'
-                                    ]
+                                        [
+                                            'type' => 'transaction',
+                                            'action' => 'deposit',
+                                            'channel_id' => 'high_importance_channel'
+                                        ]
                                     );
                                 }
                             }
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'message' => 'payment not initialised'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'message' => 'payment not initialised'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'transaction id exit'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'invalid User ID'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1435,8 +1349,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1446,8 +1359,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (DB::table('user')->where(['id' => $this->verifyapptoken($request->id), 'status' => 1])->count() == 1) {
@@ -1466,8 +1379,7 @@ class Auth extends Controller
                         'status' => 403,
                         'message' => $validator->errors()->first()
                     ])->setStatusCode(403);
-                }
-                else {
+                } else {
                     $send_request = "https://api.monnify.com/api/v1/disbursements/account/validate?accountNumber=$request->account_number&bankCode=$request->bank_code";
                     $json_response = json_decode(@file_get_contents($send_request), true);
                     if (!empty($json_response)) {
@@ -1501,29 +1413,25 @@ class Auth extends Controller
                             }
 
                             DB::table('request')->insert(['username' => $user->username, 'message' => $user->username . " Transferred  ₦" . number_format($request->amount, 2) . " to your bank account. Reference is => " . $transid, 'date' => $this->system_date(), 'transid' => $transid, 'status' => 0, 'title' => 'MANUAL BANK TRANSFER']);
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'status' => 403,
                                 'message' => 'Inavlid Account Details'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 403,
                             'message' => 'Inavlid Account Details'
                         ])->setStatusCode(403);
                     }
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'Kindly Logout The Account And Try Again',
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1534,8 +1442,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1545,42 +1452,36 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if ($request->type == 'data') {
                 return response()->json([
                     'data' => DB::table('network')->where(function ($query) {
-                    $query->orWhere('network_cg', 1)->orWhere('network_sme', 1)->orWhere('network_g', 1);
-                })->select('id', 'network', 'plan_id', 'network_sme', 'network_cg', 'network_g')->get()
+                        $query->orWhere('network_cg', 1)->orWhere('network_sme', 1)->orWhere('network_g', 1);
+                    })->select('id', 'network', 'plan_id', 'network_sme', 'network_cg', 'network_g')->get()
                 ]);
-            }
-            else if ($request->type == 'airtime') {
+            } else if ($request->type == 'airtime') {
                 $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->token ? $request->token : '00'), 'status' => 1]);
                 if ($user->count() == 1) {
                     $adex = $user->first();
                     if ($adex->type == 'SMART') {
                         $user_type = strtolower($adex->type);
-                    }
-                    else if ($adex->type == 'AGENT') {
+                    } else if ($adex->type == 'AGENT') {
                         $user_type = strtolower($adex->type);
-                    }
-                    else if ($adex->type == 'AWUF') {
+                    } else if ($adex->type == 'AWUF') {
                         $user_type = strtolower($adex->type);
-                    }
-                    else if ($adex->type == 'API') {
+                    } else if ($adex->type == 'API') {
                         $user_type = strtolower($adex->type);
-                    }
-                    else {
+                    } else {
                         $user_type = 'special';
                     }
                     $network_plan = [];
                     foreach (DB::table('network')->where('network_vtu', 1)->get() as $network) {
                         if ($network->network == '9MOBILE') {
                             $real_network = 'mobile';
-                        }
-                        else {
+                        } else {
                             $real_network = $network->network;
                         }
                         $check_for_vtu = strtolower($real_network) . "_vtu_" . $user_type;
@@ -1595,17 +1496,15 @@ class Auth extends Controller
                         'data' => $network_plan
                     ]);
 
-                }
-                else {
+                } else {
 
                     return response()->json([
                         'data' => DB::table('network')->where(function ($query) {
-                        $query->orWhere('network_vtu', 1)->orWhere('network_share', 1);
-                    })->select('id', 'network', 'plan_id', 'network_vtu', 'network_share')->get()
+                            $query->orWhere('network_vtu', 1)->orWhere('network_share', 1);
+                        })->select('id', 'network', 'plan_id', 'network_vtu', 'network_share')->get()
                     ]);
                 }
-            }
-            else if ($request->type == 'cash') {
+            } else if ($request->type == 'cash') {
                 $network = DB::table('network')->where('cash', 1)->select('id', 'network', 'plan_id')->get();
                 $cash_plan = [];
                 $discount = DB::table('cash_discount')->first();
@@ -1626,28 +1525,24 @@ class Auth extends Controller
                 return response()->json([
                     'data' => $cash_plan,
                 ]);
-            }
-            else if ($request->type == 'data_card') {
+            } else if ($request->type == 'data_card') {
 
                 return response()->json([
                     'data' => DB::table('network')->where('data_card', 1)->select('id', 'network', 'plan_id')->get()
                 ]);
 
-            }
-            else if ($request->type == 'recharge_card') {
+            } else if ($request->type == 'recharge_card') {
                 return response()->json([
                     'data' => DB::table('network')->where('recharge_card', 1)->select('id', 'network', 'plan_id')->get()
                 ]);
 
-            }
-            else {
+            } else {
                 return response()->json([
                     'status' => 403,
                     'message' => 'invalid type'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1659,8 +1554,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1670,8 +1564,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (!empty($request->id)) {
@@ -1692,30 +1586,24 @@ class Auth extends Controller
                         return response()->json([
                             'data' => $data_plan
                         ]);
-                    }
-                    else if ($request->type == 'airtime') {
+                    } else if ($request->type == 'airtime') {
                         $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->token), 'status' => 1]);
                         if ($user->count() == 1) {
                             $adex = $user->first();
                             if ($adex->type == 'SMART') {
                                 $user_type = strtolower($adex->type);
-                            }
-                            else if ($adex->type == 'AGENT') {
+                            } else if ($adex->type == 'AGENT') {
                                 $user_type = strtolower($adex->type);
-                            }
-                            else if ($adex->type == 'AWUF') {
+                            } else if ($adex->type == 'AWUF') {
                                 $user_type = strtolower($adex->type);
-                            }
-                            else if ($adex->type == 'API') {
+                            } else if ($adex->type == 'API') {
                                 $user_type = strtolower($adex->type);
-                            }
-                            else {
+                            } else {
                                 $user_type = 'special';
                             }
                             if ($network->network == '9MOBILE') {
                                 $real_network = 'mobile';
-                            }
-                            else {
+                            } else {
                                 $real_network = $network->network;
                             }
                             $check_for_vtu = strtolower($real_network) . "_vtu_" . $user_type;
@@ -1723,8 +1611,7 @@ class Auth extends Controller
                             $airtime_discount = DB::table('airtime_discount')->first();
                             $vtu_price = $airtime_discount->$check_for_vtu;
                             $share_price = $airtime_discount->$check_for_sns;
-                        }
-                        else {
+                        } else {
                             $vtu_price = 0;
                             $share_price = 0;
                         }
@@ -1739,27 +1626,23 @@ class Auth extends Controller
                         return response()->json([
                             'data' => $airtime_plan
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 403,
                             'message' => 'invalid type'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'Select Network'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'Select Network'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -1782,17 +1665,13 @@ class Auth extends Controller
                 // validate user type
                 if ($adex->type == 'SMART') {
                     $user_type = 'smart';
-                }
-                else if ($adex->type == 'AGENT') {
+                } else if ($adex->type == 'AGENT') {
                     $user_type = 'agent';
-                }
-                else if ($adex->type == 'AWUF') {
+                } else if ($adex->type == 'AWUF') {
                     $user_type = 'awuf';
-                }
-                else if ($adex->type == 'API') {
+                } else if ($adex->type == 'API') {
                     $user_type = 'api';
-                }
-                else {
+                } else {
                     $user_type = 'special';
                 }
                 if ($main_validator->fails()) {
@@ -1800,8 +1679,7 @@ class Auth extends Controller
                         'message' => $main_validator->errors()->first(),
                         'status' => 403
                     ])->setStatusCode(403);
-                }
-                else {
+                } else {
                     if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
                         $get_network = DB::table('network')->where('plan_id', $request->network)->first();
 
@@ -1810,30 +1688,26 @@ class Auth extends Controller
                             foreach ($all_plan->get() as $adex => $plan) {
                                 $data_plan[] = ['name' => $plan->name . $plan->plan_size . ' ' . $plan->plan_type . ' = ₦' . number_format($plan->$user_type, 2) . ' ' . $plan->plan_day, 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
                             }
-                        }
-                        else {
+                        } else {
                             $data_plan = [];
                         }
                         return response()->json([
                             'status' => 'success',
                             'data' => $data_plan,
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'message' => 'please select network'
                         ])->setStatusCode(403);
                     }
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'status' => 403,
                     'message' => 'Not Authorised'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'status' => 403,
                 'message' => 'Unable to Authenticate System'
@@ -1858,17 +1732,13 @@ class Auth extends Controller
                 // validate user type
                 if ($adex->type == 'SMART') {
                     $user_type = 'smart';
-                }
-                else if ($adex->type == 'AGENT') {
+                } else if ($adex->type == 'AGENT') {
                     $user_type = 'agent';
-                }
-                else if ($adex->type == 'AWUF') {
+                } else if ($adex->type == 'AWUF') {
                     $user_type = 'awuf';
-                }
-                else if ($adex->type == 'API') {
+                } else if ($adex->type == 'API') {
                     $user_type = 'api';
-                }
-                else {
+                } else {
                     $user_type = 'special';
                 }
                 if ($main_validator->fails()) {
@@ -1876,8 +1746,7 @@ class Auth extends Controller
                         'message' => $main_validator->errors()->first(),
                         'status' => 403
                     ])->setStatusCode(403);
-                }
-                else {
+                } else {
                     if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
                         $get_network = DB::table('network')->where('plan_id', $request->network)->first();
 
@@ -1886,30 +1755,26 @@ class Auth extends Controller
                             foreach ($all_plan->get() as $adex => $plan) {
                                 $data_plan[] = ['name' => $plan->name . ' = ₦' . number_format($plan->$user_type, 2), 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
                             }
-                        }
-                        else {
+                        } else {
                             $data_plan = [];
                         }
                         return response()->json([
                             'status' => 'success',
                             'data' => $data_plan,
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'message' => 'please select network'
                         ])->setStatusCode(403);
                     }
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'status' => 403,
                     'message' => 'Not Authorised'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'status' => 403,
                 'message' => 'Unable to Authenticate System'
@@ -1922,8 +1787,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -1933,8 +1797,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (!empty($request->id)) {
@@ -1950,17 +1814,13 @@ class Auth extends Controller
                     // validate user type
                     if ($adex->type == 'SMART') {
                         $user_type = 'smart';
-                    }
-                    else if ($adex->type == 'AGENT') {
+                    } else if ($adex->type == 'AGENT') {
                         $user_type = 'agent';
-                    }
-                    else if ($adex->type == 'AWUF') {
+                    } else if ($adex->type == 'AWUF') {
                         $user_type = 'awuf';
-                    }
-                    else if ($adex->type == 'API') {
+                    } else if ($adex->type == 'API') {
                         $user_type = 'api';
-                    }
-                    else {
+                    } else {
                         $user_type = 'special';
                     }
                     if ($main_validator->fails()) {
@@ -1968,8 +1828,7 @@ class Auth extends Controller
                             'message' => $main_validator->errors()->first(),
                             'status' => 403
                         ])->setStatusCode(403);
-                    }
-                    else {
+                    } else {
                         if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
                             $get_network = DB::table('network')->where('plan_id', $request->network)->first();
                             if (isset($request->network_type)) {
@@ -1978,8 +1837,7 @@ class Auth extends Controller
                                     foreach ($all_plan->get() as $adex => $plan) {
                                         $data_plan[] = ['name' => $plan->plan_name . $plan->plan_size . ' ' . $plan->plan_type . ' = ₦' . number_format($plan->$user_type, 2) . ' ' . $plan->plan_day, 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
                                     }
-                                }
-                                else {
+                                } else {
                                     $data_plan = [];
                                 }
                                 return response()->json([
@@ -1988,8 +1846,7 @@ class Auth extends Controller
                                     'network' => $get_network->network,
                                     'plan_type' => $request->network_type
                                 ]);
-                            }
-                            else {
+                            } else {
                                 $sme = [];
                                 $cg = [];
                                 $gifting = [];
@@ -2012,31 +1869,27 @@ class Auth extends Controller
                                     'data' => $dresult
                                 ]);
                             }
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'message' => 'please select network'
                             ])->setStatusCode(403);
                         }
 
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 403,
                         'message' => 'Not Authorised'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return redirect(config('app.error_500'));
                 return response()->json([
                     'status' => 403,
                     'message' => 'Unable to Authenticate System'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2048,8 +1901,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2059,8 +1911,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
 
@@ -2075,8 +1927,7 @@ class Auth extends Controller
                     'message' => $main_validator->errors()->first(),
                     'status' => 403
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->user_id), 'status' => 1])->count() == 1) {
                     $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->user_id), 'status' => 1])->first();
 
@@ -2087,21 +1938,18 @@ class Auth extends Controller
                             'message' => 'correct',
                             'status' => 'success'
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'message' => 'Invalid Transaction Pin',
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'Account Log Out',
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2112,8 +1960,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2123,8 +1970,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if ($request->type == 'cable') {
@@ -2153,8 +2000,7 @@ class Auth extends Controller
                 return response()->json([
                     'data' => $cable_plan
                 ]);
-            }
-            else if ($request->type == 'bill') {
+            } else if ($request->type == 'bill') {
                 $bill_plan = [];
                 $bill_id = DB::table('bill_plan')->where('plan_status', 1)->get();
                 $bill_price = DB::table('bill_charge')->first();
@@ -2165,8 +2011,7 @@ class Auth extends Controller
                 return response()->json([
                     'data' => $bill_plan
                 ]);
-            }
-            else if ($request->type == 'exam') {
+            } else if ($request->type == 'exam') {
                 $exam_plan = [];
                 $exam_id = DB::table('exam_id')->get();
                 $exam_lock = DB::table('cable_result_lock')->first();
@@ -2195,14 +2040,12 @@ class Auth extends Controller
                     'status' => 'success',
                     'data' => $exam_plan
                 ]);
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'Not Avialable'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2214,8 +2057,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2225,8 +2067,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (DB::table('cable_id')->where('plan_id', $request->cable)->count() == 1) {
@@ -2237,18 +2079,16 @@ class Auth extends Controller
                     $cable_plan[] = ['id' => $plan->id, 'name' => $plan->plan_name . ' ' . '₦' . number_format($plan->plan_price, 2), 'amount' => $plan->plan_price, 'plan_id' => $plan->plan_id];
                 }
                 return response()->json(
-                [
-                    'data' => $cable_plan
-                ]
+                    [
+                        'data' => $cable_plan
+                    ]
                 );
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'Cable Required'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2260,8 +2100,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2271,8 +2110,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifyapptoken($request->user_id)]);
@@ -2290,8 +2129,7 @@ class Auth extends Controller
                     $mobile_share = 'mobile_share_smart';
                     $airtel_share = 'airtel_share_smart';
                     $glo_share = 'glo_share_smart';
-                }
-                else if ($adex->type == 'AGENT') {
+                } else if ($adex->type == 'AGENT') {
                     $user_type = 'agent';
 
 
@@ -2304,8 +2142,7 @@ class Auth extends Controller
                     $mobile_share = 'mobile_share_agent';
                     $airtel_share = 'airtel_share_agent';
                     $glo_share = 'glo_share_agent';
-                }
-                else if ($adex->type == 'AWUF') {
+                } else if ($adex->type == 'AWUF') {
                     $user_type = 'awuf';
 
                     $mtn_vtu = 'mtn_vtu_awuf';
@@ -2317,8 +2154,7 @@ class Auth extends Controller
                     $mobile_share = 'mobile_share_awuf';
                     $airtel_share = 'airtel_share_awuf';
                     $glo_share = 'glo_share_awuf';
-                }
-                else if ($adex->type == 'API') {
+                } else if ($adex->type == 'API') {
                     $user_type = 'api';
 
                     $mtn_vtu = 'mtn_vtu_api';
@@ -2330,8 +2166,7 @@ class Auth extends Controller
                     $mobile_share = 'mobile_share_api';
                     $airtel_share = 'airtel_share_api';
                     $glo_share = 'glo_share_api';
-                }
-                else {
+                } else {
                     $user_type = 'special';
 
                     $mtn_vtu = 'mtn_vtu_special';
@@ -2350,8 +2185,7 @@ class Auth extends Controller
                         $data_plan[] = ['plan' => $plan->plan_name . $plan->plan_size . ' ' . $plan->plan_type, 'network' => $plan->network, 'price' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
                         ;
                     }
-                }
-                else {
+                } else {
                     $data_plan = [];
                 }
                 $airtime = DB::table('airtime_discount')->first();
@@ -2393,16 +2227,14 @@ class Auth extends Controller
                     'cable' => $cable_plan,
                     'exam' => $exam_list
                 ]);
-            }
-            else {
+            } else {
                 return redirect(config('app.error_500'));
                 return response()->json([
                     'status' => 403,
                     'message' => 'Unable to Authenticate System'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2413,15 +2245,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifyapptoken($request->user_id)]);
@@ -2437,14 +2268,11 @@ class Auth extends Controller
                 foreach (DB::table('message')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2454,14 +2282,11 @@ class Auth extends Controller
                 foreach (DB::table('data')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2470,30 +2295,24 @@ class Auth extends Controller
                 foreach (DB::table('airtime')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
-                    $airtime_trans[] = ['transid' => $plan->transid, 'network' => $plan->network, 'network_type' => $plan->network_type, 'phone' => $plan->plan_phone, 'amount' => '₦' . number_format($plan->amount, 2), 'status' => $status, 'oldbal' => '₦' . number_format($plan->oldbal, 2), 'newbal' => '₦' . number_format($plan->newbal, 2), 'date' => $plan->plan_date, 'discount' => '₦' . number_format($plan->discount, 2), ];
+                    $airtime_trans[] = ['transid' => $plan->transid, 'network' => $plan->network, 'network_type' => $plan->network_type, 'phone' => $plan->plan_phone, 'amount' => '₦' . number_format($plan->amount, 2), 'status' => $status, 'oldbal' => '₦' . number_format($plan->oldbal, 2), 'newbal' => '₦' . number_format($plan->newbal, 2), 'date' => $plan->plan_date, 'discount' => '₦' . number_format($plan->discount, 2),];
                 }
                 foreach (DB::table('cable')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2502,14 +2321,11 @@ class Auth extends Controller
                 foreach (DB::table('bill')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2518,14 +2334,11 @@ class Auth extends Controller
                 foreach (DB::table('exam')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->plan_status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->plan_status == 2) {
+                    } else if ($plan->plan_status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->plan_status == 0) {
+                    } else if ($plan->plan_status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2534,14 +2347,11 @@ class Auth extends Controller
                 foreach (DB::table('deposit')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(200) as $plan) {
                     if ($plan->status == 1) {
                         $status = 'success';
-                    }
-                    else if ($plan->status == 2) {
+                    } else if ($plan->status == 2) {
                         $status = 'fail';
-                    }
-                    else if ($plan->status == 0) {
+                    } else if ($plan->status == 0) {
                         $status = 'processing';
-                    }
-                    else {
+                    } else {
                         $status = 'undefined';
                     }
 
@@ -2557,16 +2367,14 @@ class Auth extends Controller
                     'exam' => $exam_trans,
                     'deposit' => $deposit_trans
                 ]);
-            }
-            else {
+            } else {
                 return redirect(config('app.error_500'));
                 return response()->json([
                     'status' => 403,
                     'message' => 'Unable to Authenticate System'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2578,15 +2386,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifyapptoken($request->user_id)]);
@@ -2635,23 +2442,20 @@ class Auth extends Controller
                         'status' => 'success',
                         'user' => $user_details
                     ]);
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Image File Empty'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return redirect(config('app.error_500'));
                 return response()->json([
                     'status' => 403,
                     'message' => 'Unable to Authenticate System'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2663,15 +2467,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifyapptoken($request->user_id)]);
@@ -2681,16 +2484,14 @@ class Auth extends Controller
                 return response()->json([
                     'data' => DB::table('notif')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(100)
                 ]);
-            }
-            else {
+            } else {
                 return redirect(config('app.error_500'));
                 return response()->json([
                     'status' => 403,
                     'message' => 'Unable to Authenticate System'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2701,15 +2502,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $validator = Validator::make($request->all(), [
@@ -2724,8 +2524,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->count() == 1) {
                     $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
                     $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->first();
@@ -2739,16 +2538,14 @@ class Auth extends Controller
                         'status' => 'success',
 
                     ]);
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid User'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2759,15 +2556,14 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)->orWhere('app_key', $authHeader)->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $validator = Validator::make($request->all(), [
@@ -2783,8 +2579,7 @@ class Auth extends Controller
                     'status' => 403,
                     'message' => $validator->errors()->first()
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 if (DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->count() == 1) {
                     $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
                     $user = DB::table('user')->where(['id' => $this->verifyapptoken($request->app_key), 'status' => 1])->first();
@@ -2845,16 +2640,14 @@ class Auth extends Controller
                         'user' => $user_details
                     ]);
 
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid User'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2867,8 +2660,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2878,8 +2670,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (DB::table('user')->where(['id' => $this->verifyapptoken($request->user_id), 'status' => 1])->count() == 1) {
@@ -2890,8 +2682,7 @@ class Auth extends Controller
                     $trans = DB::table('message')->where(function ($function) {
                         $function->orWhere('role', 'debit')->orWhere('role', 'credit');
                     })->where('username', $user->username)->orderBy('id', 'desc')->get()->take(10);
-                }
-                else {
+                } else {
                     $trans = DB::table('message')->where(function ($function) {
                         $function->orWhere('role', 'debit')->orWhere('role', 'credit');
                     })->where('username', $user->username)->orderBy('id', 'desc')->get()->take(20);
@@ -2900,15 +2691,13 @@ class Auth extends Controller
                     'status' => 'success',
                     'trans' => $trans
                 ]);
-            }
-            else {
+            } else {
                 return response()->json([
                     'status' => 'fail',
                     'message' => 'Invalid User'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -2919,8 +2708,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -2930,8 +2718,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             if (DB::table('user')->where(['id' => $this->verifyapptoken($request->user_id), 'status' => 1])->count() == 1) {
@@ -2943,71 +2731,61 @@ class Auth extends Controller
                             'main_trans' => $main_trans,
                             'data' => DB::table('data')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'airtime') {
+                    } else if ($main_trans->role == 'airtime') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('airtime')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'credit') {
+                    } else if ($main_trans->role == 'credit') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('deposit')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'cash') {
+                    } else if ($main_trans->role == 'cash') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('cash')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'bill') {
+                    } else if ($main_trans->role == 'bill') {
 
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('bill')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
 
-                    }
-                    else if ($main_trans->role == 'cable') {
+                    } else if ($main_trans->role == 'cable') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('cable')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'exam') {
+                    } else if ($main_trans->role == 'exam') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('exam')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
 
-                    }
-                    else if ($main_trans->role == 'data_card') {
+                    } else if ($main_trans->role == 'data_card') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('data_card')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'recharge_card') {
+                    } else if ($main_trans->role == 'recharge_card') {
 
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('recharge_card')->where(['username' => $user->username, 'transid' => $main_trans->transid])->first()
                         ];
-                    }
-                    else if ($main_trans->role == 'charity_donation') {
+                    } else if ($main_trans->role == 'charity_donation') {
                         $return_trans = [
                             'main_trans' => $main_trans,
                             'data' => DB::table('donations')
-                            ->join('campaigns', 'donations.campaign_id', '=', 'campaigns.id')
-                            ->join('charities', 'donations.charity_id', '=', 'charities.id')
-                            ->where('donations.transid', $main_trans->transid)
-                            ->select('donations.*', 'campaigns.title as campaign_title', 'charities.name as charity_name')
-                            ->first()
+                                ->join('campaigns', 'donations.campaign_id', '=', 'campaigns.id')
+                                ->join('charities', 'donations.charity_id', '=', 'charities.id')
+                                ->where('donations.transid', $main_trans->transid)
+                                ->select('donations.*', 'campaigns.title as campaign_title', 'charities.name as charity_name')
+                                ->first()
                         ];
-                    }
-                    else {
+                    } else {
 
                         $return_trans = [
                             'main_trans' => $main_trans
@@ -3018,20 +2796,17 @@ class Auth extends Controller
                         'status' => 'success',
                         'trans' => $return_trans
                     ]);
-                }
-                else {
+                } else {
                     return response()->json([
                         'message' => 'Transaction ID Not Found'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'User Not Authorized'
                 ])->setStatusCode(403);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -3042,8 +2817,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3053,8 +2827,8 @@ class Auth extends Controller
             ->first();
         // Fallback: If token format is ID|Token (Sanctum-style) or just ID, try verifying app token
         if (!$user && strpos($authHeader, '|') !== false) {
-        // Extract ID part if necessary, or just verify directly
-        // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
+            // Extract ID part if necessary, or just verify directly
+            // Note: verifyapptoken decrypts; here we might need adjustment if using Sanctum
         }
         if ($user) {
             $validator = Validator::make($request->all(), [
@@ -3071,175 +2845,154 @@ class Auth extends Controller
                         return response()->json([
                             'data' => DB::table('data')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('data')->where(['username' => $user->username])->where(function ($query) use ($search) {
-                            $query->orWhere('network', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('api_response', 'LIKE', "%$search%")->orWhere('plan_phone', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('network_type', 'LIKE', "%$search%")->orWhere('wallet', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('network', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('api_response', 'LIKE', "%$search%")->orWhere('plan_phone', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('network_type', 'LIKE', "%$search%")->orWhere('wallet', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                // the transaction type (airtime output)
-                }
-                else if ($request->type == 'airtime') {
+                    // the transaction type (airtime output)
+                } else if ($request->type == 'airtime') {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('airtime')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('airtime')->where(['username' => $user->username])->where(function ($query) use ($search) {
-                            $query->orWhere('network', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('plan_phone', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('network_type', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('network', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('plan_phone', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('network_type', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                else if ($request->type == 'deposit') {
+                } else if ($request->type == 'deposit') {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('deposit')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('deposit')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('wallet_type', 'LIKE', "%$search%")->orWhere('type', 'LIKE', "%$search%")->orWhere('credit_by', 'LIKE', "%$search%")->orWhere('charges', 'LIKE', "%$search%")->orWhere('monify_ref', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('wallet_type', 'LIKE', "%$search%")->orWhere('type', 'LIKE', "%$search%")->orWhere('credit_by', 'LIKE', "%$search%")->orWhere('charges', 'LIKE', "%$search%")->orWhere('monify_ref', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                else if ($request->type == 'cash') {
+                } else if ($request->type == 'cash') {
                     if (empty($search)) {
 
                         return response()->json([
                             'data' => DB::table('cash')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('cash')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('amount_credit', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('payment_type', 'LIKE', "%$search%")->orWhere('network', 'LIKE', "%$search%")->orWhere('sender_number', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('amount_credit', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('payment_type', 'LIKE', "%$search%")->orWhere('network', 'LIKE', "%$search%")->orWhere('sender_number', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                elseif ($request->type == 'bill') {
+                } elseif ($request->type == 'bill') {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('bill')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('bill')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('disco_name', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('meter_number', 'LIKE', "%$search%")->orWhere('meter_type', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%")->orWhere('token', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('disco_name', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('meter_number', 'LIKE', "%$search%")->orWhere('meter_type', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%")->orWhere('token', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
 
                     }
 
-                }
-                elseif ($request->type == 'earning') {
+                } elseif ($request->type == 'earning') {
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('message')->where(['username' => $user->username, 'role' => 'earning'])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('message')->where(['username' => $user->username, 'role' => 'earning'])->Where(function ($query) use ($search) {
-                            $query->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                else if ($request->type == 'cable') {
+                } else if ($request->type == 'cable') {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('cable')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('cable')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('charges', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('cable_plan', 'LIKE', "%$search%")->orWhere('cable_name', 'LIKE', "%$search%")->orWhere('iuc', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('charges', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('cable_plan', 'LIKE', "%$search%")->orWhere('cable_name', 'LIKE', "%$search%")->orWhere('iuc', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                else if ($request->type == 'exam') {
+                } else if ($request->type == 'exam') {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('exam')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('exam')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('purchase_code', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('exam_name', 'LIKE', "%$search%")->orWhere('quantity', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('amount', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%")->orWhere('purchase_code', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('exam_name', 'LIKE', "%$search%")->orWhere('quantity', 'LIKE', "%$search%")->orWhere('username', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
 
-                }
-                else if ($request->type == 'data_card') {
+                } else if ($request->type == 'data_card') {
                     if (empty($search)) {
 
                         return response()->json([
                             'data' => DB::table('data_card')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('data_card')->Where(function ($query) use ($search) {
-                            $query->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('load_pin', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('plan_type', 'LIKE', "%$search%")->orWhere('card_name', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%");
-                        })->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('load_pin', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('plan_type', 'LIKE', "%$search%")->orWhere('card_name', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%");
+                            })->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
 
                     }
 
-                }
-                else if ($request->type == 'recharge_card') {
+                } else if ($request->type == 'recharge_card') {
                     if (empty($search)) {
 
                         return response()->json([
                             'data' => DB::table('recharge_card')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('recharge_card')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('load_pin', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('card_name', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('username', 'LIKE', "%$search%")->orWhere('plan_date', 'LIKE', "%$search%")->orWhere('load_pin', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('system', 'LIKE', "%$search%")->orWhere('card_name', 'LIKE', "%$search%")->orWhere('plan_name', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
 
                     }
 
-                }
-                else {
+                } else {
 
                     if (empty($search)) {
                         return response()->json([
                             'data' => DB::table('message')->where(['username' => $user->username])->orderBy('id', 'desc')->paginate(25)
                         ]);
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'data' => DB::table('message')->where(['username' => $user->username])->Where(function ($query) use ($search) {
-                            $query->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('message', 'LIKE', "%$search%");
-                        })->orderBy('id', 'desc')->paginate(25)
+                                $query->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%")->orWhere('message', 'LIKE', "%$search%");
+                            })->orderBy('id', 'desc')->paginate(25)
                         ]);
                     }
                 }
@@ -3251,14 +3004,12 @@ class Auth extends Controller
                         'message' => $validator->errors()->first()
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'User Not Found',
                 ])->setStatusCode(502);
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -3270,8 +3021,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3306,15 +3056,13 @@ class Auth extends Controller
                     'otp' => $otp
                 ]);
 
-            }
-            else {
+            } else {
                 return response()->json([
                     'message' => 'User Not Found',
                 ])->setStatusCode(502);
             }
 
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -3327,8 +3075,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3356,8 +3103,7 @@ class Auth extends Controller
 
             // Return the updated records
             return response()->json(['data' => $records], 200);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'User Not Found',
             ])->setStatusCode(502);
@@ -3369,8 +3115,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3394,8 +3139,7 @@ class Auth extends Controller
             return response()->json([
                 'message' => 'User Not Found',
             ])->setStatusCode(502);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -3407,8 +3151,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3426,18 +3169,17 @@ class Auth extends Controller
                 return response()->json([
                     'status' => 'success',
                     'data' => DB::table('message')
-                    ->where('username', $user->username)
-                    ->orderBy('id', 'desc')
-                    ->limit(5)
-                    ->select('message', 'amount', 'transid', 'habukhan_date as adex_date', 'plan_status', 'role')
-                    ->get()
+                        ->where('username', $user->username)
+                        ->orderBy('id', 'desc')
+                        ->limit(5)
+                        ->select('message', 'amount', 'transid', 'habukhan_date as adex_date', 'plan_status', 'role')
+                        ->get()
                 ], 200);
             }
             return response()->json([
                 'message' => 'User Not Found',
             ])->setStatusCode(502);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'APP Server Down',
             ])->setStatusCode(403);
@@ -3448,8 +3190,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3468,13 +3209,13 @@ class Auth extends Controller
 
             $transformedData = collect($data->items())->map(function ($item) {
                 return [
-                'id' => $item->transid ?? $item->id,
-                'type' => $item->role ?? 'transaction',
-                'amount' => $item->amount,
-                'status' => $item->plan_status ?? 'success',
-                'description' => $item->message ?? '',
-                'reference' => $item->transid ?? '',
-                'created_at' => $item->habukhan_date ?? $item->adex_date ?? now()->toIso8601String(),
+                    'id' => $item->transid ?? $item->id,
+                    'type' => $item->role ?? 'transaction',
+                    'amount' => $item->amount,
+                    'status' => $item->plan_status ?? 'success',
+                    'description' => $item->message ?? '',
+                    'reference' => $item->transid ?? '',
+                    'created_at' => $item->habukhan_date ?? $item->adex_date ?? now()->toIso8601String(),
                 ];
             });
 
@@ -3487,8 +3228,7 @@ class Auth extends Controller
                     'total' => $data->total(),
                 ]
             ], 200);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'Unauthorised',
             ])->setStatusCode(403);
@@ -3500,8 +3240,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)
@@ -3526,12 +3265,11 @@ class Auth extends Controller
     {
         try {
             \Log::info('ChangePassword: Request received', ['data' => $request->all()]);
-            
+
             $authHeader = $request->header('Authorization');
             if (strpos($authHeader, 'Token ') === 0) {
                 $authHeader = substr($authHeader, 6);
-            }
-            elseif (strpos($authHeader, 'Bearer ') === 0) {
+            } elseif (strpos($authHeader, 'Bearer ') === 0) {
                 $authHeader = substr($authHeader, 7);
             }
             $user = DB::table('user')->where('apikey', $authHeader)
@@ -3561,7 +3299,7 @@ class Auth extends Controller
 
                 $newPassword = password_hash($request->password, PASSWORD_DEFAULT, array('cost' => 16));
                 DB::table('user')->where('id', $user->id)->update(['password' => $newPassword]);
-                
+
                 try {
                     (new \App\Services\NotificationService())->sendSecurityNotification($user, 'Account Password');
                 } catch (\Exception $e) {
@@ -3596,12 +3334,11 @@ class Auth extends Controller
     {
         try {
             \Log::info('ChangePin: Request received', ['data' => $request->all()]);
-            
+
             $authHeader = $request->header('Authorization');
             if (strpos($authHeader, 'Token ') === 0) {
                 $authHeader = substr($authHeader, 6);
-            }
-            elseif (strpos($authHeader, 'Bearer ') === 0) {
+            } elseif (strpos($authHeader, 'Bearer ') === 0) {
                 $authHeader = substr($authHeader, 7);
             }
             $user = DB::table('user')->where('apikey', $authHeader)
@@ -3626,7 +3363,7 @@ class Auth extends Controller
                 }
 
                 DB::table('user')->where('id', $user->id)->update(['pin' => $request->new_pin]);
-                
+
                 try {
                     (new \App\Services\NotificationService())->sendSecurityNotification($user, 'Transaction PIN');
                 } catch (\Exception $e) {
@@ -3662,8 +3399,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)
@@ -3722,8 +3458,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')->where('apikey', $authHeader)
@@ -3750,8 +3485,7 @@ class Auth extends Controller
                 $updateData = [
                     'nin' => $request->id_number,
                 ];
-            }
-            else {
+            } else {
                 if ($user->bvn) {
                     return response()->json(['status' => 'error', 'message' => 'BVN is already verified and locked.'], 400);
                 }
@@ -3763,7 +3497,7 @@ class Auth extends Controller
                 $updateData = [
                     'bvn' => $request->id_number,
                 ];
-                
+
                 // IMPORTANT: Store DOB for BVN verification
                 // BVN verification requires DOB, so we must save it to user table
                 if ($request->verification_method == 'dob') {
@@ -3778,7 +3512,7 @@ class Auth extends Controller
                 $kycProvider = $kycSettings->kyc_provider ?? 'pointwave';
 
                 \Log::info("KYC: Initiating {$kycProvider} verification for User {$user->id} | Type: {$request->id_type} | Number: {$request->id_number}");
-                
+
                 $nameParts = explode(' ', $user->name ?? '');
                 $firstName = $nameParts[0] ?? 'User';
                 $lastName = implode(' ', array_slice($nameParts, 1)) ?: $firstName;
@@ -3811,13 +3545,13 @@ class Auth extends Controller
                 }
 
                 \Log::info("KYC: {$kycProvider} verification SUCCESS for User {$user->id}");
-                
+
                 // Extract DOB from PointWave response if available (BVN verification returns actual DOB)
                 if ($request->id_type === 'bvn' && isset($verification['data']['date_of_birth'])) {
                     $updateData['dob'] = $verification['data']['date_of_birth'];
                     \Log::info("KYC: Extracted DOB from PointWave BVN response: " . $verification['data']['date_of_birth']);
                 }
-                
+
                 // Determine tier and limits based on ID type
                 if ($request->id_type === 'bvn') {
                     $updateData['kyc_tier'] = 'tier_2';
@@ -3828,12 +3562,11 @@ class Auth extends Controller
                     $updateData['single_limit'] = 50000.00;
                     $updateData['daily_limit'] = 200000.00;
                 }
-                
+
                 $updateData['kyc'] = '1';
                 $updateData['kyc_status'] = 'approved';
 
-            }
-            catch (\Exception $e) {
+            } catch (\Exception $e) {
                 \Log::error("{$kycProvider} KYC Exception: " . $e->getMessage());
                 return response()->json([
                     'status' => 'error',
@@ -3854,13 +3587,13 @@ class Auth extends Controller
                     'verified_at' => now(),
                     'updated_at' => now(),
                 ];
-                
+
                 if ($request->id_type === 'bvn') {
                     $kycData['bvn'] = $request->id_number;
                 } else {
                     $kycData['nin'] = $request->id_number;
                 }
-                
+
                 DB::table('pointwave_kyc')->updateOrInsert(
                     ['user_id' => $user->id],
                     $kycData
@@ -3887,8 +3620,7 @@ class Auth extends Controller
                         'updated_at' => now()
                     ]
                 );
-            }
-            catch (\Exception $e) {
+            } catch (\Exception $e) {
                 \Log::error("KYC Sync to user_kyc table failed: " . $e->getMessage());
             }
 
@@ -3904,8 +3636,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3920,17 +3651,16 @@ class Auth extends Controller
             $count = DB::table('notif')
                 ->where('username', $user->username)
                 ->where(function ($query) {
-                $query->where('habukhan', '!=', 1)
-                    ->orWhereNull('habukhan');
-            })
+                    $query->where('habukhan', '!=', 1)
+                        ->orWhereNull('habukhan');
+                })
                 ->count();
 
             return response()->json([
                 'status' => 'success',
                 'count' => $count
             ], 200);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'Unauthorised',
             ])->setStatusCode(403);
@@ -3941,8 +3671,7 @@ class Auth extends Controller
         $authHeader = $request->header('Authorization');
         if (strpos($authHeader, 'Token ') === 0) {
             $authHeader = substr($authHeader, 6);
-        }
-        elseif (strpos($authHeader, 'Bearer ') === 0) {
+        } elseif (strpos($authHeader, 'Bearer ') === 0) {
             $authHeader = substr($authHeader, 7);
         }
         $user = DB::table('user')
@@ -3973,8 +3702,7 @@ class Auth extends Controller
                 'status' => 'error',
                 'message' => 'Notification not found'
             ], 404);
-        }
-        else {
+        } else {
             return response()->json([
                 'message' => 'Unauthorised',
             ])->setStatusCode(403);
@@ -4003,43 +3731,32 @@ class Auth extends Controller
 
         if ($role == 'data') {
             $receipt_data = DB::table('data')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'airtime') {
+        } else if ($role == 'airtime') {
             $receipt_data = DB::table('airtime')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'credit') {
+        } else if ($role == 'credit') {
             $receipt_data = DB::table('deposit')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'cash') {
+        } else if ($role == 'cash') {
             $receipt_data = DB::table('cash')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'bill') {
+        } else if ($role == 'bill') {
             $receipt_data = DB::table('bill')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'cable') {
+        } else if ($role == 'cable') {
             $receipt_data = DB::table('cable')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'exam') {
+        } else if ($role == 'exam') {
             $receipt_data = DB::table('exam')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'data_card') {
+        } else if ($role == 'data_card') {
             $receipt_data = DB::table('data_card')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'recharge_card') {
+        } else if ($role == 'recharge_card') {
             $receipt_data = DB::table('recharge_card')->where(['username' => $user->username, 'transid' => $transid])->first();
-        }
-        else if ($role == 'charity_donation') {
+        } else if ($role == 'charity_donation') {
             $receipt_data = DB::table('donations')
                 ->join('campaigns', 'donations.campaign_id', '=', 'campaigns.id')
                 ->join('charities', 'donations.charity_id', '=', 'charities.id')
                 ->where('donations.transid', $transid)
                 ->select('donations.*', 'campaigns.title as campaign_title', 'charities.name as charity_name', 'charities.logo as charity_logo')
                 ->first();
-        }
-        else if ($role == 'transfer') {
+        } else if ($role == 'transfer') {
             $receipt_data = DB::table('transfers')->where(['user_id' => $user->id, 'reference' => $transid])->first();
-        }
-        else if ($role == 'dollar_card') {
+        } else if ($role == 'dollar_card') {
             // Dollar card transactions are stored only in message table
             $receipt_data = (object) [
                 'reference' => $main_trans->transid,
@@ -4048,8 +3765,7 @@ class Auth extends Controller
                 'recipient_account' => 'Sudo Africa',
                 'recipient_bank' => 'Virtual Card',
             ];
-        }
-        else if ($role == 'marketplace') {
+        } else if ($role == 'marketplace') {
             $order = DB::table('marketplace_orders')->where('reference', $transid)->first();
             if ($order) {
                 $items = DB::table('marketplace_order_items')->where('order_id', $order->id)->get();
@@ -4073,7 +3789,7 @@ class Auth extends Controller
             }
         }
 
-        $final_receipt = (array)($receipt_data ?? $main_trans);
+        $final_receipt = (array) ($receipt_data ?? $main_trans);
         $final_receipt['narration'] = $main_trans->message;
         $final_receipt['date'] = $main_trans->habukhan_date;
         $final_receipt['transid'] = $main_trans->transid;

@@ -9,8 +9,21 @@ class MarketplaceProduct extends Model
     protected $table = 'marketplace_products';
 
     protected $fillable = [
-        'category_id', 'vendor_id', 'name', 'slug', 'description', 'price', 'discount_price',
-        'stock', 'weight', 'images', 'sizes', 'colors', 'is_active', 'is_featured', 'sort_order',
+        'category_id',
+        'vendor_id',
+        'name',
+        'slug',
+        'description',
+        'price',
+        'discount_price',
+        'stock',
+        'weight',
+        'images',
+        'sizes',
+        'colors',
+        'is_active',
+        'is_featured',
+        'sort_order',
     ];
 
     protected $casts = [
@@ -23,6 +36,8 @@ class MarketplaceProduct extends Model
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
     ];
+
+    protected $appends = ['image_urls', 'effective_price'];
 
     public function category()
     {
@@ -41,9 +56,11 @@ class MarketplaceProduct extends Model
 
     public function getImageUrlsAttribute()
     {
-        if (!$this->images || !is_array($this->images)) return [];
+        if (!$this->images || !is_array($this->images))
+            return [];
         return array_map(function ($path) {
-            if (str_starts_with($path, 'http')) return $path;
+            if (str_starts_with($path, 'http'))
+                return $path;
             return url('storage/' . $path);
         }, $this->images);
     }
