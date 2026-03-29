@@ -114,24 +114,24 @@ class Controller extends BaseController
 
     public function generatetoken($req)
     {
-        if (DB::table('user')->where('id', $req)->count() == 1) {
-            $secure_key = bin2hex(random_bytes(32));
-            DB::table('user')->where('id', $req)->update(['habukhan_key' => $secure_key]);
-            return $secure_key;
-        } else {
-            return null;
+        $user = User::find($req);
+        if ($user) {
+            // Create a Sanctum personal access token for multi-device support
+            $token = $user->createToken('web-session')->plainTextToken;
+            return $token;
         }
+        return null;
     }
 
     public function generateapptoken($key)
     {
-        if (DB::table('user')->where('id', $key)->count() == 1) {
-            $secure_key = bin2hex(random_bytes(32));
-            DB::table('user')->where('id', $key)->update(['app_key' => $secure_key]);
-            return $secure_key;
-        } else {
-            return null;
+        $user = User::find($key);
+        if ($user) {
+            // Create a Sanctum personal access token for mobile app
+            $token = $user->createToken('mobile-app')->plainTextToken;
+            return $token;
         }
+        return null;
     }
     public function verifyapptoken($key)
     {
@@ -146,7 +146,7 @@ class Controller extends BaseController
 
         $id = null;
 
-        // 1. Check for Sanctum Token (ID|SECRET)
+        // 1. Check for Sanctum Token (ID|SECRET) - PRIORITY
         if (strpos($key, '|') !== false) {
             $parts = explode('|', $key, 2);
             $tokenId = $parts[0];
@@ -161,19 +161,19 @@ class Controller extends BaseController
 
             $sanctumToken = DB::table('personal_access_tokens')
                 ->where('id', $tokenId)
+                ->where('tokenable_type', 'App\\Models\\User')
                 ->first();
 
             if ($sanctumToken && hash_equals($sanctumToken->token, hash('sha256', $tokenPlainText))) {
+                // Check if token is not expired (if expiration is set)
+                if ($sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
+                    return null; // Token expired
+                }
                 $id = $sanctumToken->tokenable_id;
-            }
-
-            // 1.5 Fallback for Legacy ID|KEY format
-            if (!$id) {
-                $key = $tokenPlainText; // Use only the secret part for legacy check
             }
         }
 
-        // 2. Fallback to Legacy Columns
+        // 2. Fallback to Legacy Columns (for backward compatibility)
         if (!$id) {
             $check = DB::table('user')->where(function ($query) use ($key) {
                 $query->where('app_key', $key)
@@ -191,7 +191,40 @@ class Controller extends BaseController
 
     public function verifytoken($request)
     {
-        // Check for habukhan_key first (backward compatibility)
+        // Strip Bearer prefix if present
+        if (str_starts_with($request, 'Bearer ')) {
+            $request = substr($request, 7);
+        }
+
+        // 1. Check for Sanctum Token (ID|SECRET) - PRIORITY
+        if (strpos($request, '|') !== false) {
+            $parts = explode('|', $request, 2);
+            $tokenId = $parts[0];
+            $tokenPlainText = $parts[1];
+
+            // Safety: Handle URL encoded pipes
+            if (strpos($tokenId, '%7C') !== false) {
+                $parts = explode('%7C', $request, 2);
+                $tokenId = $parts[0];
+                $tokenPlainText = $parts[1];
+            }
+
+            $sanctumToken = DB::table('personal_access_tokens')
+                ->where('id', $tokenId)
+                ->where('tokenable_type', 'App\\Models\\User')
+                ->first();
+
+            if ($sanctumToken && hash_equals($sanctumToken->token, hash('sha256', $tokenPlainText))) {
+                // Check if token is not expired
+                if ($sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
+                    return null; // Token expired
+                }
+                $user = DB::table('user')->where('id', $sanctumToken->tokenable_id)->first();
+                return $user ? $user->id : null;
+            }
+        }
+
+        // 2. Fallback to Legacy Columns (for backward compatibility)
         if (DB::table('user')->where('habukhan_key', $request)->count() == 1) {
             $user = DB::table('user')->where('habukhan_key', $request)->first();
             return $user->id;

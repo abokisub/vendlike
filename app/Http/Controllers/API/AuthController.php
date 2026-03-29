@@ -865,7 +865,8 @@ class AuthController extends Controller
                                     'status' => 'success',
                                     'message' => 'Login successfully',
                                     'user' => $user_details,
-                                    'token' => $this->generatetoken($user->id)
+                                    'token' => $this->generatetoken($user->id), // Legacy field for backward compatibility
+                                    'auth_token' => $this->generatetoken($user->id), // Sanctum token for multi-device support
                                 ]);
                             } else if ($user->status == 2) {
                                 return response()->json([
@@ -884,7 +885,8 @@ class AuthController extends Controller
                                     'status' => 'success',
                                     'message' => 'Login successfully',
                                     'user' => $user_details,
-                                    'token' => $this->generatetoken($user->id)
+                                    'token' => $this->generatetoken($user->id), // Legacy field for backward compatibility
+                                    'auth_token' => $this->generatetoken($user->id), // Sanctum token for multi-device support
                                 ]);
                             } else {
                                 \Log::warning('Login Failed: Status logic mismatch for User=' . $user->username . ', Status=' . $user->status);

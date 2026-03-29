@@ -37,11 +37,39 @@ class TokenAuthMiddleware
             ], 401);
         }
 
-        // Check against different token columns used by the app
-        $user = User::where('app_key', $token)
-            ->orWhere('habukhan_key', $token)
-            ->orWhere('apikey', $token)
-            ->first();
+        // First try Sanctum authentication (for multi-device support)
+        $user = null;
+
+        // Check for Sanctum token (ID|SECRET format)
+        if (strpos($token, '|') !== false) {
+            $parts = explode('|', $token, 2);
+            $tokenId = $parts[0];
+            $tokenPlainText = $parts[1];
+
+            $sanctumToken = \DB::table('personal_access_tokens')
+                ->where('id', $tokenId)
+                ->where('tokenable_type', 'App\\Models\\User')
+                ->first();
+
+            if ($sanctumToken && hash_equals($sanctumToken->token, hash('sha256', $tokenPlainText))) {
+                // Check if token is not expired
+                if ($sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Session expired. Please log in again.'
+                    ], 401);
+                }
+                $user = User::find($sanctumToken->tokenable_id);
+            }
+        }
+
+        // Fallback to legacy token columns for backward compatibility
+        if (!$user) {
+            $user = User::where('app_key', $token)
+                ->orWhere('habukhan_key', $token)
+                ->orWhere('apikey', $token)
+                ->first();
+        }
 
         if (!$user) {
             return response()->json([
