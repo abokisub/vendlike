@@ -117,19 +117,19 @@ class Controller extends BaseController
     {
         $user = User::find($req);
         if ($user) {
-            // Keep only the 3 most recent web session tokens to allow limited multi-device support
+            // Keep only the 10 most recent web session tokens to allow multi-device support
             $recentTokens = $user->tokens()
                 ->where('name', 'web-session')
                 ->orderBy('created_at', 'desc')
-                ->offset(3)->limit(1000)
+                ->offset(10)->limit(1000)
                 ->pluck('id');
 
             if ($recentTokens->isNotEmpty()) {
                 $user->tokens()->whereIn('id', $recentTokens)->delete();
             }
 
-            // Create a Sanctum personal access token for web sessions with 30-day expiration
-            $token = $user->createToken('web-session', ['*'], now()->addDays(30))->plainTextToken;
+            // Create a Sanctum personal access token for web sessions (indefinite)
+            $token = $user->createToken('web-session', ['*'])->plainTextToken;
             return $token;
         }
         return null;
@@ -139,19 +139,19 @@ class Controller extends BaseController
     {
         $user = User::find($key);
         if ($user) {
-            // Keep only the 3 most recent mobile app tokens to allow limited multi-device support
+            // Keep only the 10 most recent mobile app tokens to allow multi-device support
             $recentTokens = $user->tokens()
                 ->where('name', 'mobile-app')
                 ->orderBy('created_at', 'desc')
-                ->offset(3)->limit(1000)
+                ->offset(10)->limit(1000)
                 ->pluck('id');
 
             if ($recentTokens->isNotEmpty()) {
                 $user->tokens()->whereIn('id', $recentTokens)->delete();
             }
 
-            // Create a Sanctum personal access token for mobile app with 90-day expiration
-            $token = $user->createToken('mobile-app', ['*'], now()->addDays(90))->plainTextToken;
+            // Create a Sanctum personal access token for mobile app (indefinite)
+            $token = $user->createToken('mobile-app', ['*'])->plainTextToken;
             return $token;
         }
         return null;
@@ -256,8 +256,7 @@ class Controller extends BaseController
         elseif (DB::table('user')->where('apikey', $request)->count() == 1) {
             $user = DB::table('user')->where('apikey', $request)->first();
             return $user->id;
-        }
-        else {
+        } else {
             return null;
         }
     }
@@ -312,8 +311,10 @@ class Controller extends BaseController
 
                     // Only request missing bank codes
                     $bankCodes = [];
-                    if (is_null($get_user->palmpay)) $bankCodes[] = '20867';
-                    if (is_null($get_user->kolomoni_mfb)) $bankCodes[] = '20987';
+                    if (is_null($get_user->palmpay))
+                        $bankCodes[] = '20867';
+                    if (is_null($get_user->kolomoni_mfb))
+                        $bankCodes[] = '20987';
 
                     $payload = [
                         'email' => $get_user->email,
@@ -576,7 +577,7 @@ class Controller extends BaseController
             } else {
                 // STEP 2: Create customer in PointWave first
                 \Log::info("PointWave: Creating customer for $username");
-                
+
                 // Split name into first and last name
                 $nameParts = explode(' ', $user->name, 2);
                 $firstName = $nameParts[0];
@@ -595,7 +596,7 @@ class Controller extends BaseController
                 if ($customerResult['success']) {
                     $customerInfo = $customerResult['data'];
                     $customerId = $customerInfo['customer_id'] ?? $customerInfo['id'] ?? null;
-                    
+
                     if ($customerId) {
                         // Save customer_id to database
                         DB::table('user')->where('id', $user->id)->update([
@@ -630,7 +631,7 @@ class Controller extends BaseController
 
                 if ($result['success']) {
                     $accountInfo = $result['data'];
-                    
+
                     // PointWave returns virtual_accounts as an array
                     $virtualAccount = null;
                     if (isset($accountInfo['virtual_accounts']) && is_array($accountInfo['virtual_accounts']) && count($accountInfo['virtual_accounts']) > 0) {
@@ -638,12 +639,12 @@ class Controller extends BaseController
                     } else {
                         $virtualAccount = $accountInfo; // Fallback to direct data
                     }
-                    
+
                     $accountNumber = $virtualAccount['account_number'] ?? null;
                     $accountName = $virtualAccount['account_name'] ?? $user->name;
                     $bankName = $virtualAccount['bank_name'] ?? 'PalmPay Bank'; // Use "PalmPay Bank" for PointWave
                     $bankCode = $virtualAccount['bank_code'] ?? '100033'; // PalmPay bank code
-                    
+
                     // Update user with PointWave account details
                     $updateData = [
                         'pointwave_account_number' => $accountNumber,
@@ -653,7 +654,7 @@ class Controller extends BaseController
                     ];
 
                     DB::table('user')->where('id', $user->id)->update($updateData);
-                    
+
                     // IMPORTANT: Also save to pointwave_virtual_accounts table for webhook processing
                     if ($accountNumber) {
                         try {
@@ -678,7 +679,7 @@ class Controller extends BaseController
                             ]);
                         }
                     }
-                    
+
                     \Log::info("PointWave: Virtual account created successfully for $username", $updateData);
                 } else {
                     \Log::error("PointWave: Failed to create virtual account for $username", [
@@ -825,7 +826,7 @@ class Controller extends BaseController
             if ($chargeType === 'PERCENTAGE') {
                 // Calculate percentage charge
                 $charge = ($amount * $chargeValue) / 100;
-                
+
                 // Apply cap if set and charge exceeds cap
                 if ($chargeCap > 0 && $charge > $chargeCap) {
                     $charge = $chargeCap;

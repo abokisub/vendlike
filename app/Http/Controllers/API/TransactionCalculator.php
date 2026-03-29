@@ -1083,11 +1083,24 @@ class TransactionCalculator extends Controller
                             case 'Referrals':
                                 $query->where('message', 'like', 'Referral Earning%');
                                 break;
+                            case 'Dollar Card':
+                                $query->whereIn('role', ['card_creation', 'card_funding']);
+                                break;
+                            case 'Shop':
+                                $query->where('role', 'marketplace');
+                                break;
+                            case 'Jamb':
+                                $query->where('role', 'jamb');
+                                break;
+                            case 'Gift Card':
+                                $query->where('role', 'debit')->where('message', 'like', 'Buy Gift Card%');
+                                break;
                             case 'Others':
                                 // Exclude all known roles
-                                $query->whereNotIn('role', ['transfer_sent', 'transfer', 'airtime', 'data', 'bill', 'cable', 'exam', 'charity_donation', 'recharge_card', 'credit'])
+                                $query->whereNotIn('role', ['transfer_sent', 'transfer', 'airtime', 'data', 'bill', 'cable', 'exam', 'charity_donation', 'recharge_card', 'credit', 'marketplace', 'jamb', 'card_creation', 'card_funding'])
                                     ->where('message', 'not like', '%Transfer to%')
-                                    ->where('message', 'not like', 'Referral Earning%');
+                                    ->where('message', 'not like', 'Referral Earning%')
+                                    ->where('message', 'not like', 'Buy Gift Card%');
                                 break;
                             default:
                                 // Return empty if unknown category
@@ -1139,6 +1152,22 @@ class TransactionCalculator extends Controller
                                 $cat = 'Airtime PIN';
                                 $icon = 'confirmation_number';
                                 $color = '0xFF6366F1';
+                            } elseif ($tx->role == 'marketplace') {
+                                $cat = 'Shop';
+                                $icon = 'shopping_bag';
+                                $color = '0xFFEC4899';
+                            } elseif ($tx->role == 'jamb') {
+                                $cat = 'Jamb';
+                                $icon = 'school';
+                                $color = '0xFFEF4444';
+                            } elseif (in_array($tx->role, ['card_creation', 'card_funding'])) {
+                                $cat = 'Dollar Card';
+                                $icon = 'currency_exchange';
+                                $color = '0xFF14B8A6';
+                            } elseif ($tx->role == 'debit' && strpos($tx->message, 'Buy Gift Card') !== false) {
+                                $cat = 'Gift Card';
+                                $icon = 'card_giftcard';
+                                $color = '0xFFF59E0B';
                             }
 
                             return [
@@ -1169,7 +1198,7 @@ class TransactionCalculator extends Controller
                         $exam_trans = DB::table('exam')->select('exam_name', 'amount', 'quantity')->whereDate('plan_date', Carbon::now("Africa/Lagos"))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $bulksms_trans = DB::table('bulksms')->select('amount')->whereDate('plan_date', Carbon::now("Africa/Lagos"))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $deposit_trans = DB::table('deposit')->select('amount', 'charges')->whereDate('date', Carbon::now("Africa/Lagos"))->where(['status' => 1, 'username' => $real_username])->get();
-                        $spend_trans = DB::table('message')->select('amount')->where(function ($query) {
+                        $spend_trans = DB::table('message')->select('amount', 'role', 'message')->where(function ($query) {
                             $query->where('role', '!=', 'credit');
                             $query->where('role', '!=', 'transfer');
                             $query->where('plan_status', '!=', 2);
@@ -1189,7 +1218,7 @@ class TransactionCalculator extends Controller
                         $exam_trans = DB::table('exam')->select('exam_name', 'amount', 'quantity')->whereDate('plan_date', '>', Carbon::now("Africa/Lagos")->subDays(7))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $bulksms_trans = DB::table('bulksms')->select('amount')->whereDate('plan_date', '>', Carbon::now("Africa/Lagos")->subDays(7))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $deposit_trans = DB::table('deposit')->select('amount', 'charges')->whereDate('date', '>', Carbon::now("Africa/Lagos")->subDays(7))->where(['status' => 1, 'username' => $real_username])->get();
-                        $spend_trans = DB::table('message')->select('amount')->where(function ($query) {
+                        $spend_trans = DB::table('message')->select('amount', 'role', 'message')->where(function ($query) {
                             $query->where('role', '!=', 'credit');
                             $query->where('role', '!=', 'transfer');
                             $query->where('plan_status', '!=', 2);
@@ -1209,7 +1238,7 @@ class TransactionCalculator extends Controller
                         $exam_trans = DB::table('exam')->select('exam_name', 'amount', 'quantity')->whereDate('plan_date', '>', Carbon::now("Africa/Lagos")->subDays(30))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $bulksms_trans = DB::table('bulksms')->select('amount')->whereDate('plan_date', '>', Carbon::now("Africa/Lagos")->subDays(30))->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $deposit_trans = DB::table('deposit')->select('amount', 'charges')->whereDate('date', '>', Carbon::now("Africa/Lagos")->subDays(30))->where(['status' => 1, 'username' => $real_username])->get();
-                        $spend_trans = DB::table('message')->select('amount')->where(function ($query) {
+                        $spend_trans = DB::table('message')->select('amount', 'role', 'message')->where(function ($query) {
                             $query->where('role', '!=', 'credit');
                             $query->where('role', '!=', 'transfer');
                             $query->where('plan_status', '!=', 2);
@@ -1229,7 +1258,7 @@ class TransactionCalculator extends Controller
                         $exam_trans = DB::table('exam')->select('exam_name', 'amount', 'quantity')->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $bulksms_trans = DB::table('bulksms')->select('amount')->where(['plan_status' => 1, 'username' => $real_username])->get();
                         $deposit_trans = DB::table('deposit')->select('amount', 'charges')->where(['status' => 1, 'username' => $real_username])->get();
-                        $spend_trans = DB::table('message')->select('amount')->where(function ($query) {
+                        $spend_trans = DB::table('message')->select('amount', 'role', 'message')->where(function ($query) {
                             $query->where('role', '!=', 'credit');
                             $query->where('role', '!=', 'transfer');
                             $query->where('plan_status', '!=', 2);
@@ -1253,7 +1282,7 @@ class TransactionCalculator extends Controller
                                 $exam_trans = DB::table('exam')->select('exam_name', 'amount', 'quantity')->whereBetween('plan_date', [$start_date, $end_date])->where(['plan_status' => 1, 'username' => $real_username])->get();
                                 $bulksms_trans = DB::table('bulksms')->select('amount')->whereBetween('plan_date', [$start_date, $end_date])->where(['plan_status' => 1, 'username' => $real_username])->get();
                                 $deposit_trans = DB::table('deposit')->select('amount', 'charges')->whereBetween('date', [$start_date, $end_date])->where(['status' => 1, 'username' => $real_username])->get();
-                                $spend_trans = DB::table('message')->select('amount')->where(function ($query) {
+                                $spend_trans = DB::table('message')->select('amount', 'role', 'message')->where(function ($query) {
                                     $query->where('role', '!=', 'credit');
                                     $query->where('role', '!=', 'transfer');
                                     $query->where('plan_status', '!=', 2);
@@ -1734,8 +1763,21 @@ class TransactionCalculator extends Controller
                         $deposit_charges += $deposit->charges;
                     }
                     $money_spent = 0;
+                    $shop_total = 0;
+                    $jamb_total = 0;
+                    $dollar_card_total = 0;
+                    $gift_card_total = 0;
                     foreach ($spend_trans as $spend) {
                         $money_spent += $spend->amount;
+                        if ($spend->role == 'marketplace') {
+                            $shop_total += $spend->amount;
+                        } elseif ($spend->role == 'jamb') {
+                            $jamb_total += $spend->amount;
+                        } elseif (in_array($spend->role, ['card_creation', 'card_funding'])) {
+                            $dollar_card_total += $spend->amount;
+                        } elseif ($spend->role == 'debit' && strpos($spend->message, 'Buy Gift Card') !== false) {
+                            $gift_card_total += $spend->amount;
+                        }
                     }
                     $transfer_total = 0;
                     $transfer_charges = 0;
@@ -1844,7 +1886,7 @@ class TransactionCalculator extends Controller
                     $transfers_total = $transfer_total + $transfer_charges;
                     $education_total = $waec + $neco + $nabteb;
 
-                    $specifically_tracked = $data_total + $airtime_total + $cable_total + $bill_total + $transfers_total + $education_total + $bulksms + $cash_pay;
+                    $specifically_tracked = $data_total + $airtime_total + $cable_total + $bill_total + $transfers_total + $education_total + $bulksms + $cash_pay + $shop_total + $jamb_total + $dollar_card_total + $gift_card_total;
                     $others_total = max(0, $money_spent - ($specifically_tracked - $bulksms - $cash_pay) + $bulksms + $cash_pay);
 
                     $charity_donation_amount = 0;
@@ -1976,6 +2018,10 @@ class TransactionCalculator extends Controller
                             ['name' => 'Charity', 'amount' => round($charity_donation_amount, 2), 'icon' => 'volunteer_activism', 'color' => '0xFF06B6D4'],
                             ['name' => 'Airtime to Cash', 'amount' => round($cash_pay, 2), 'icon' => 'currency_exchange', 'color' => '0xFFEC4899'],
                             ['name' => 'Airtime PIN', 'amount' => round($recharge_card_total, 2), 'icon' => 'confirmation_number', 'color' => '0xFF6366F1'],
+                            ['name' => 'Dollar Card', 'amount' => round($dollar_card_total, 2), 'icon' => 'currency_exchange', 'color' => '0xFF14B8A6'],
+                            ['name' => 'Shop', 'amount' => round($shop_total, 2), 'icon' => 'shopping_bag', 'color' => '0xFFEC4899'],
+                            ['name' => 'Jamb', 'amount' => round($jamb_total, 2), 'icon' => 'school', 'color' => '0xFFEF4444'],
+                            ['name' => 'Gift Card', 'amount' => round($gift_card_total, 2), 'icon' => 'card_giftcard', 'color' => '0xFFF59E0B'],
                             ['name' => 'Referrals', 'amount' => round($referral_earnings, 2), 'icon' => 'people', 'color' => '0xFF84CC16'],
                             ['name' => 'Others', 'amount' => round($others_total, 2), 'icon' => 'more_horiz', 'color' => '0xFF6B7280'],
                         ],
@@ -2020,6 +2066,22 @@ class TransactionCalculator extends Controller
                                 $cat = 'Airtime PIN';
                                 $icon = 'confirmation_number';
                                 $color = '0xFF6366F1';
+                            } elseif ($tx->role == 'marketplace') {
+                                $cat = 'Shop';
+                                $icon = 'shopping_bag';
+                                $color = '0xFFEC4899';
+                            } elseif ($tx->role == 'jamb') {
+                                $cat = 'Jamb';
+                                $icon = 'school';
+                                $color = '0xFFEF4444';
+                            } elseif (in_array($tx->role, ['card_creation', 'card_funding'])) {
+                                $cat = 'Dollar Card';
+                                $icon = 'currency_exchange';
+                                $color = '0xFF14B8A6';
+                            } elseif ($tx->role == 'debit' && strpos($tx->message, 'Buy Gift Card') !== false) {
+                                $cat = 'Gift Card';
+                                $icon = 'card_giftcard';
+                                $color = '0xFFF59E0B';
                             }
 
                             return [
