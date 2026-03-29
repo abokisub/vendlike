@@ -861,12 +861,18 @@ class AuthController extends Controller
                                     'bank_name' => $user_details['bank_name'],
                                     'default_account' => $user_details['default_account']
                                 ]));
+
+                                // Create separate tokens for web and mobile to prevent conflicts
+                                $webToken = $this->generatetoken($user->id); // Web session token
+                                $mobileToken = $this->generateapptoken($user->id); // Mobile app token
+
                                 return response()->json([
                                     'status' => 'success',
                                     'message' => 'Login successfully',
                                     'user' => $user_details,
-                                    'token' => $this->generatetoken($user->id), // Legacy field for backward compatibility
-                                    'auth_token' => $this->generatetoken($user->id), // Sanctum token for multi-device support
+                                    'token' => $webToken, // Legacy field for backward compatibility
+                                    'auth_token' => $webToken, // Sanctum token for web sessions
+                                    'mobile_token' => $mobileToken, // Separate token for mobile apps
                                 ]);
                             } else if ($user->status == 2) {
                                 return response()->json([
@@ -881,12 +887,18 @@ class AuthController extends Controller
                             } else if ($user->status == 0) {
                                 // SKIP OTP - Auto-verify and login for all users
                                 DB::table('user')->where(['id' => $user->id])->update(['status' => 1]);
+
+                                // Create separate tokens for web and mobile to prevent conflicts
+                                $webToken = $this->generatetoken($user->id); // Web session token
+                                $mobileToken = $this->generateapptoken($user->id); // Mobile app token
+
                                 return response()->json([
                                     'status' => 'success',
                                     'message' => 'Login successfully',
                                     'user' => $user_details,
-                                    'token' => $this->generatetoken($user->id), // Legacy field for backward compatibility
-                                    'auth_token' => $this->generatetoken($user->id), // Sanctum token for multi-device support
+                                    'token' => $webToken, // Legacy field for backward compatibility
+                                    'auth_token' => $webToken, // Sanctum token for web sessions
+                                    'mobile_token' => $mobileToken, // Separate token for mobile apps
                                 ]);
                             } else {
                                 \Log::warning('Login Failed: Status logic mismatch for User=' . $user->username . ', Status=' . $user->status);

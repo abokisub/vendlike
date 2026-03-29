@@ -116,8 +116,19 @@ class Controller extends BaseController
     {
         $user = User::find($req);
         if ($user) {
-            // Create a Sanctum personal access token for multi-device support
-            $token = $user->createToken('web-session')->plainTextToken;
+            // Keep only the 3 most recent web session tokens to allow limited multi-device support
+            $recentTokens = $user->tokens()
+                ->where('name', 'web-session')
+                ->orderBy('created_at', 'desc')
+                ->skip(3)
+                ->pluck('id');
+
+            if ($recentTokens->isNotEmpty()) {
+                $user->tokens()->whereIn('id', $recentTokens)->delete();
+            }
+
+            // Create a Sanctum personal access token for web sessions with 30-day expiration
+            $token = $user->createToken('web-session', ['*'], now()->addDays(30))->plainTextToken;
             return $token;
         }
         return null;
@@ -127,8 +138,11 @@ class Controller extends BaseController
     {
         $user = User::find($key);
         if ($user) {
-            // Create a Sanctum personal access token for mobile app
-            $token = $user->createToken('mobile-app')->plainTextToken;
+            // Revoke old mobile app tokens to prevent accumulation
+            $user->tokens()->where('name', 'mobile-app')->delete();
+
+            // Create a Sanctum personal access token for mobile app with 90-day expiration
+            $token = $user->createToken('mobile-app', ['*'], now()->addDays(90))->plainTextToken;
             return $token;
         }
         return null;
