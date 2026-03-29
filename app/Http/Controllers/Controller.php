@@ -139,8 +139,16 @@ class Controller extends BaseController
     {
         $user = User::find($key);
         if ($user) {
-            // Revoke old mobile app tokens to prevent accumulation
-            $user->tokens()->where('name', 'mobile-app')->delete();
+            // Keep only the 3 most recent mobile app tokens to allow limited multi-device support
+            $recentTokens = $user->tokens()
+                ->where('name', 'mobile-app')
+                ->orderBy('created_at', 'desc')
+                ->offset(3)->limit(1000)
+                ->pluck('id');
+
+            if ($recentTokens->isNotEmpty()) {
+                $user->tokens()->whereIn('id', $recentTokens)->delete();
+            }
 
             // Create a Sanctum personal access token for mobile app with 90-day expiration
             $token = $user->createToken('mobile-app', ['*'], now()->addDays(90))->plainTextToken;
