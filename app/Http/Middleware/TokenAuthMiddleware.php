@@ -52,8 +52,8 @@ class TokenAuthMiddleware
                 ->first();
 
             if ($sanctumToken && hash_equals($sanctumToken->token, hash('sha256', $tokenPlainText))) {
-                // Check if token is not expired
-                if ($sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
+                // Check if token is not expired (if expires_at column exists)
+                if (isset($sanctumToken->expires_at) && $sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
                     return response()->json([
                         'status' => 'error',
                         'message' => 'Session expired. Please log in again.'
