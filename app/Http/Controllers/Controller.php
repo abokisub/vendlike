@@ -180,8 +180,8 @@ class Controller extends BaseController
                 ->first();
 
             if ($sanctumToken && hash_equals($sanctumToken->token, hash('sha256', $tokenPlainText))) {
-                // Check if token is not expired (if expiration is set)
-                if ($sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
+                // Check if token is not expired (guard against missing property)
+                if (isset($sanctumToken->expires_at) && $sanctumToken->expires_at && now()->isAfter($sanctumToken->expires_at)) {
                     return null; // Token expired
                 }
                 $id = $sanctumToken->tokenable_id;
