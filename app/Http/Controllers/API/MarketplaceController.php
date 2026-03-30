@@ -919,6 +919,18 @@ class MarketplaceController extends Controller
             }
 
             DB::commit();
+
+            // Notify all admins about the new order (non-blocking)
+            try {
+                (new \App\Services\NotificationService())->sendAdminMarketplaceOrderAlert(
+                    $user,
+                    $order,
+                    $orderItems
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Admin marketplace order alert failed: ' . $e->getMessage());
+            }
+
         } catch (\Exception $e) {
             DB::rollback();
             Log::error('Marketplace order creation failed', ['error' => $e->getMessage()]);

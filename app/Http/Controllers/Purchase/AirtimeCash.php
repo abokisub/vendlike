@@ -196,11 +196,9 @@ class AirtimeCash extends Controller
                                                 if ($this->inserting_data('message', $trans_history) and $this->inserting_data('cash', $trans_cash)) {
 
                                                     $send_message = $user->username . " want to convert " . $request->network . " ₦" . number_format($request->amount, 2) . " to cash. payment method is (" . strtoupper($request->payment_type) . "), Amount to Be Credited is ₦" . number_format($credit, 2) . " Airtime sent from " . $request->sender_number . " Reference is => " . $transid;
-                                                    $mes_data = [
-                                                        'mes' => $send_message,
-                                                        'title' => 'AIRTIME 2 CASH'
-                                                    ];
-                                                    ApiSending::ADMINEMAIL($mes_data);
+                                                    // Trigger Admin Notification (Email + Push)
+                                                    (new \App\Services\NotificationService())->sendAdminAirtimeToCashAlert($user, $request->amount, $request->network, $transid);
+
                                                     DB::table('request')->insert(['username' => $user->username, 'message' => $send_message, 'date' => $this->system_date(), 'transid' => $transid, 'status' => 0, 'title' => 'AIRTIME 2 CASH']);
                                                     return response()->json([
                                                         'status' => 'success',

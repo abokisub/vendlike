@@ -431,4 +431,95 @@ class NotificationService
             ]
         ]);
     }
+
+    /**
+     * ────────────────────────────────────────────────────────────
+     * ADMIN ALERT METHODS
+     * These send email + push alerts to all admin users.
+     * ────────────────────────────────────────────────────────────
+     */
+    private function notifyAdmins(string $title, string $body, string $subject, array $attachments = []): void
+    {
+        try {
+            $admins = DB::table('user')->where('type', 'admin')->whereNotNull('email')->get();
+
+            foreach ($admins as $admin) {
+                // Push notification to admin's device (if token exists)
+                if ($admin->app_token) {
+                    try {
+                        $this->firebaseService->sendNotification(
+                            $admin->app_token,
+                            $title,
+                            $body,
+                            ['type' => 'admin_alert', 'audio_type' => 'bank'],
+                            null,
+                            true
+                        );
+                    } catch (\Exception $e) {
+                        Log::warning("Admin push failed for {$admin->username}: " . $e->getMessage());
+                    }
+                }
+
+                // Email to admin
+                try {
+                    \App\Http\Controllers\MailController::send_mail([
+                        'email' => $admin->email,
+                        'username' => $admin->username ?? 'Admin',
+                        'title' => $subject,
+                        'body' => $body,
+                        'app_name' => config('app.name'),
+                    ], 'email.admin_alert', $attachments);
+                } catch (\Exception $e) {
+                    Log::warning("Admin email failed for {$admin->username}: " . $e->getMessage());
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Admin notification error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Alert admins when a new marketplace order is placed.
+     */
+    public function sendAdminMarketplaceOrderAlert($user, $order, array $items): void
+    {
+        $userName = $user->name ?? $user->username;
+        $itemCount = count($items);
+        $itemList = collect($items)->pluck('product_name')->take(3)->join(', ');
+        $grandTotal = number_format($order->grand_total ?? 0, 2);
+        $ref = $order->reference ?? 'N/A';
+
+        $body = "New Marketplace Order #{$ref}\nCustomer: {$userName}\nItems ({$itemCount}): {$itemList}\nTotal: ₦{$grandTotal}\n\nLogin to admin panel to process this order.";
+        $subject = "🛒 New Order ₦{$grandTotal} | {$ref} | " . config('app.name');
+
+        $this->notifyAdmins("🛒 New Order - ₦{$grandTotal}", $body, $subject, []);
+    }
+
+    /**
+     * Alert admins when a user submits an airtime-to-cash request.
+     */
+    public function sendAdminAirtimeToCashAlert($user, $amount, $network, $ref): void
+    {
+        $userName = $user->name ?? $user->username;
+        $formatted = number_format($amount, 2);
+
+        $body = "New Airtime-to-Cash Submission\nCustomer: {$userName} ({$user->username})\nNetwork: {$network}\nAmount: ₦{$formatted}\nRef: {$ref}\n\nLogin to admin panel to verify and credit the user.";
+        $subject = "💵 A2C Request ₦{$formatted} | {$network} | " . config('app.name');
+
+        $this->notifyAdmins("💵 New A2C Request - ₦{$formatted}", $body, $subject, []);
+    }
+
+    /**
+     * Alert admins when a user submits a gift card for sale/redemption.
+     */
+    public function sendAdminGiftCardAlert($user, $cardType, $amount, $ref, array $attachments = []): void
+    {
+        $userName = $user->name ?? $user->username;
+        $formatted = number_format($amount, 2);
+
+        $body = "New Gift Card Sale Submission\nCustomer: {$userName} ({$user->username})\nCard Type: {$cardType}\nDeclared Value: ₦{$formatted}\nRef: {$ref}\n\nLogin to admin panel to review and approve.";
+        $subject = "🎁 New Gift Card Sale ₦{$formatted} | {$cardType} | " . config('app.name');
+
+        $this->notifyAdmins("🎁 Gift Card Sale - ₦{$formatted}", $body, $subject, $attachments);
+    }
 }

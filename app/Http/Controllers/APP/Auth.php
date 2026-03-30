@@ -3076,9 +3076,86 @@ class Auth extends Controller
                 \Log::error("KYC Sync to user_kyc table failed: " . $e->getMessage());
             }
 
+            $user = DB::table('user')->where('id', $user->id)->first();
+            $moniepoint_acc = DB::table('user_bank')->where(['username' => $user->username, 'bank' => 'MONIEPOINT'])->first()->account_number ?? null;
+
+            // Get conversion wallet balances
+            $userModel = User::find($user->id);
+            $a2cashBalance = $userModel ? $userModel->getA2CashBalance() : 0;
+            $giftCardBalance = $userModel ? $userModel->getGiftCardBalance() : 0;
+
+            // Get system flags for virtual accounts
+            $xixapay_enabled = DB::table('system_locks')->where(['feature_key' => 'xixapay', 'is_locked' => 0])->exists();
+            $palmpay_enabled = DB::table('system_locks')->where(['feature_key' => 'palmpay', 'is_locked' => 0])->exists();
+            $pointwave_enabled = DB::table('system_locks')->where(['feature_key' => 'pointwave', 'is_locked' => 0])->exists();
+
+            $settings = DB::table('settings')->first();
+            $active_default = $settings->default_virtual_account ?? 'pointwave';
+
+            $user_details = [
+                'id' => $user->id,
+                'username' => $user->username,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'email' => $user->email,
+                'bal' => number_format($user->bal, 2),
+                'refbal' => number_format($user->refbal, 2),
+                'main_wallet' => number_format($user->bal, 2),
+                'a2cash_wallet' => number_format($a2cashBalance, 2),
+                'giftcard_wallet' => number_format($giftCardBalance, 2),
+                'total_conversion' => number_format($a2cashBalance + $giftCardBalance, 2),
+                'kyc' => $user->kyc,
+                'type' => $user->type,
+                'pin' => $user->pin,
+                'profile_image' => $user->profile_image,
+                'sterlen' => $moniepoint_acc,
+                'fed' => null,
+                'wema' => $user->paystack_account,
+                'opay' => $xixapay_enabled ? $user->palmpay : null,
+                'kolomoni_mfb' => $xixapay_enabled ? $user->kolomoni_mfb : null,
+                'palmpay' => null,
+                'pointwave' => $pointwave_enabled ? $user->pointwave_account_number : null,
+                'pointwave_bank' => $pointwave_enabled ? ($user->pointwave_bank_name ?? 'PointWave Bank') : null,
+                'nin' => $user->nin,
+                'bvn' => $user->bvn,
+                'dob' => $user->dob,
+                'next_of_kin' => json_decode($user->next_of_kin, true),
+                'occupation' => $user->occupation,
+                'marital_status' => $user->marital_status,
+                'religion' => $user->religion,
+                'account_number' => ($active_default == 'pointwave') ? $user->pointwave_account_number :
+                    (($active_default == 'wema') ? $user->paystack_account :
+                        (($active_default == 'monnify') ? $moniepoint_acc :
+                            (($active_default == 'xixapay') ? $user->palmpay :
+                                (($active_default == 'palmpay') ? $user->palmpay : null)))),
+                'bank_name' => ($active_default == 'pointwave') ? ($user->pointwave_bank_name ?? 'PointWave Bank') :
+                    (($active_default == 'wema') ? 'Wema Bank' :
+                        (($active_default == 'monnify') ? 'Moniepoint' :
+                            (($active_default == 'xixapay') ? 'PalmPay' :
+                                (($active_default == 'palmpay') ? 'PalmPay' : null)))),
+                'address' => $user->address,
+                'webhook' => $user->webhook,
+                'about' => $user->about,
+                'apikey' => $user->apikey,
+                'notif' => DB::table('notif')->where(['username' => $user->username, 'habukhan' => 0])->count(),
+                'kyc_tier' => 'tier_' . ($user->kyc ?? 0),
+                'tier' => (int) ($user->kyc ?? 0),
+                'single_limit' => ($user->kyc == 2) ? 500000 : (($user->kyc == 1) ? 50000 : 3000),
+                'daily_limit' => ($user->kyc == 2) ? 1000000 : (($user->kyc == 1) ? 100000 : 10000),
+                'daily_used' => $user->daily_used ?? 0,
+            ];
+
             return response()->json([
                 'status' => 'success',
-                'message' => strtoupper($request->id_type) . ' verified successfully'
+                'message' => strtoupper($request->id_type) . ' verified successfully',
+                'user' => $user_details,
+                'data' => array_merge($user_details, [
+                    'ref_count' => DB::table('user')->where(['ref' => $user->username])->count(),
+                    'refbal' => $user->refbal ?? 0,
+                    'ref_link' => config('app.url') . '/auth/register/' . $user->username
+                ]),
+                'setting' => $settings,
+                'system_locks' => DB::table('system_locks')->get(['feature_key', 'is_locked']),
             ]);
         }
         return response()->json(['status' => 'error', 'message' => 'Unauthorised'], 403);

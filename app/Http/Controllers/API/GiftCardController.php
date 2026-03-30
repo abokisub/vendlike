@@ -282,14 +282,10 @@ class GiftCardController extends Controller
                 'role' => 'credit'
             ]);
 
-            // Send Admin Notification Email
+            // Trigger Admin Notification (Email + Push)
             try {
-                $adminEmail = DB::table('general')->value('app_email') ?? 'admin@vendlike.com';
-                $admins = DB::table('user')->where('type', 'ADMIN')->pluck('email', 'username')->toArray();
-
-                $imageUrls = $redemption->image_urls;
                 $attachments = [];
-                foreach ($redemption->image_paths as $idx => $path) {
+                foreach ($redemption->image_paths as $path) {
                     $fullPath = storage_path('app/public/' . $path);
                     if (file_exists($fullPath)) {
                         $attachments[] = [
@@ -299,35 +295,7 @@ class GiftCardController extends Controller
                         ];
                     }
                 }
-
-                $mailData = [
-                    'email' => $adminEmail,
-                    'username' => 'Admin',
-                    'title' => '🎁 New Gift Card Sale: ' . $cardType->name . ' | ' . config('app.name'),
-                    'name' => $user->name,
-                    'username_user' => $user->username,
-                    'card_type' => $cardType->name,
-                    'card_amount' => (float) $request->card_amount,
-                    'expected_naira' => (float) $expectedNaira,
-                    'redemption_method' => $userMethod,
-                    'card_code' => $request->card_code,
-                    'transid' => $reference,
-                    'date' => now()->format('d M Y, h:i A'),
-                    'image_urls' => $imageUrls,
-                    'app_name' => config('app.name'),
-                ];
-
-                // Send to general app email
-                \App\Http\Controllers\MailController::send_mail($mailData, 'email.admin_gift_card_notification', $attachments);
-
-                // Send to all admin users explicitly
-                foreach ($admins as $adminUser => $email) {
-                    if ($email != $adminEmail && !empty($email)) {
-                        $mailData['email'] = $email;
-                        $mailData['username'] = $adminUser;
-                        \App\Http\Controllers\MailController::send_mail($mailData, 'email.admin_gift_card_notification', $attachments);
-                    }
-                }
+                (new \App\Services\NotificationService())->sendAdminGiftCardAlert($user, $cardType->name, $request->card_amount, $reference, $attachments);
             } catch (\Exception $mailEx) {
                 \Log::error('Gift Card Admin Notification Failed: ' . $mailEx->getMessage());
             }
