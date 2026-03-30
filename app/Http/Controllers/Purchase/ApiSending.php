@@ -16,83 +16,83 @@ class ApiSending extends Controller
             'endpoint' => $data['endpoint'],
             'sending_data' => $sending_data
         ]);
-        
-        // Step 1: Login to get access token using KoboPoint API
+
+        // Step 1: Login to get access token using VendLike API
         $login_url = $data['website_url'] . "/api/login/verify/user";
         \Log::info('HabukhanApi Debug - Login URL:', ['url' => $login_url]);
-        
+
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $login_url);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        
+
         // Decode the basic auth to get username and password
         $decoded_auth = base64_decode($data['accessToken']);
         list($username, $password) = explode(':', $decoded_auth);
-        
+
         $login_payload = json_encode([
             'username' => $username,
             'password' => $password
         ]);
-        
+
         \Log::info('HabukhanApi Debug - Login Payload:', [
             'username' => $username,
             'payload' => $login_payload
         ]);
-        
+
         curl_setopt($ch, CURLOPT_POSTFIELDS, $login_payload);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json'
         ]);
-        
+
         $json = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curl_error = curl_error($ch);
         curl_close($ch);
-        
+
         \Log::info('HabukhanApi Debug - Login Response:', [
             'http_code' => $http_code,
             'response' => $json,
             'curl_error' => $curl_error
         ]);
-        
+
         $decode_habukhan = json_decode($json, true);
-        
+
         if (!empty($decode_habukhan)) {
             if (isset($decode_habukhan['token']) && $decode_habukhan['status'] == 'success') {
                 $access_token = $decode_habukhan['token'];
-                
+
                 \Log::info('HabukhanApi Debug - Got Token and API Key:', [
                     'token' => substr($access_token, 0, 10) . '...',
                     'apikey' => isset($decode_habukhan['user']['apikey']) ? substr($decode_habukhan['user']['apikey'], 0, 10) . '...' : 'NOT_FOUND',
                     'pin_available' => isset($decode_habukhan['user']['pin']) ? 'YES' : 'NO',
                     'user_balance' => $decode_habukhan['user']['bal'] ?? 'N/A'
                 ]);
-                
+
                 // CRITICAL: Use API Key for transactions, NOT login token
                 $api_key = $decode_habukhan['user']['apikey'] ?? null;
                 $user_pin = $decode_habukhan['user']['pin'] ?? null;
-                
+
                 if (!$api_key) {
                     \Log::error('HabukhanApi Debug - API Key not found in login response');
                     return ['status' => 'fail', 'message' => 'API Key not found'];
                 }
-                
+
                 if (!$user_pin) {
                     \Log::error('HabukhanApi Debug - PIN not found in login response');
                     return ['status' => 'fail', 'message' => 'Transaction PIN not found'];
                 }
-                
+
                 // Step 2: Add PIN to transaction data and generate unique request-id
                 // Actually, remove PIN - pure API flow doesn't need it when Origin header is not sent
                 if (isset($sending_data['pin'])) {
                     unset($sending_data['pin']);
                 }
-                
+
                 // Ensure request-id is unique by adding timestamp and random component
                 $unique_request_id = ($sending_data['request-id'] ?? 'TXN') . '_' . time() . '_' . uniqid();
                 $sending_data['request-id'] = $unique_request_id;
-                
+
                 // Step 3: Make the actual transaction call
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $data['endpoint']);
@@ -100,32 +100,32 @@ class ApiSending extends Controller
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($sending_data));
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                
+
                 // CRITICAL: Add Origin header to trigger External API flow (no PIN required)
                 $headers = [
                     "Authorization: Token $api_key", // Use API Key
                     'Content-Type: application/json',
-                    'Origin: https://oyitipay.com' // CRITICAL: Triggers external integration flow
+                    'Origin: https://vendlike.com' // CRITICAL: Triggers external integration flow
                 ];
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-                
+
                 \Log::info('HabukhanApi Debug - Transaction Request:', [
                     'url' => $data['endpoint'],
                     'payload' => $sending_data,
-                    'headers' => ['Authorization: Token ' . substr($api_key, 0, 10) . '...', 'Content-Type: application/json', 'Origin: https://oyitipay.com']
+                    'headers' => ['Authorization: Token ' . substr($api_key, 0, 10) . '...', 'Content-Type: application/json', 'Origin: https://vendlike.com']
                 ]);
-                
+
                 $dataapi = curl_exec($ch);
                 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $curl_error = curl_error($ch);
                 curl_close($ch);
-                
+
                 \Log::info('HabukhanApi Debug - Transaction Response:', [
                     'http_code' => $httpcode,
                     'response' => $dataapi,
                     'curl_error' => $curl_error
                 ]);
-                
+
                 return json_decode($dataapi, true);
 
             } else {
@@ -157,30 +157,30 @@ class ApiSending extends Controller
                 "Authorization: Basic " . $data['accessToken'] . "",
             ]
         );
-        
+
         \Log::info('Adex Auth Request:', [
             'url' => $data['website_url'] . "/api/user/",
             'auth_header' => "Basic " . $data['accessToken']
         ]);
-        
+
         $json = curl_exec($ch);
         $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
+
         \Log::info('Adex Auth Response:', [
             'http_code' => $httpcode,
             'response' => $json
         ]);
-        
+
         $decode_adex = (json_decode($json, true));
         if (!empty($decode_adex)) {
             if (isset($decode_adex['AccessToken'])) {
                 $access_token = $decode_adex['AccessToken'];
-                
+
                 \Log::info('Adex AccessToken obtained:', [
                     'token' => substr($access_token, 0, 20) . '...'
                 ]);
-                
+
                 // Step 2: Make the actual API call using the AccessToken
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $data['endpoint']);
@@ -192,22 +192,22 @@ class ApiSending extends Controller
                     'Content-Type: application/json'
                 ];
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-                
+
                 \Log::info('Adex API Request:', [
                     'url' => $data['endpoint'],
                     'payload' => $sending_data,
                     'headers' => $headers
                 ]);
-                
+
                 $dataapi = curl_exec($ch);
                 $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 curl_close($ch);
-                
+
                 \Log::info('Adex API Response:', [
                     'http_code' => $httpcode,
                     'response' => $dataapi
                 ]);
-                
+
                 return json_decode($dataapi, true);
 
             } else {

@@ -43,9 +43,19 @@ class MailController extends Controller
                 $message->from(config('mail.from.address'), $user_data['app_name']);
 
                 if ($attachment) {
-                    $message->attachData($attachment['data'], $attachment['name'], [
-                        'mime' => $attachment['mime']
-                    ]);
+                    if (isset($attachment[0]) && is_array($attachment[0])) {
+                        // Multiple attachments
+                        foreach ($attachment as $file) {
+                            $message->attachData($file['data'], $file['name'], [
+                                'mime' => $file['mime']
+                            ]);
+                        }
+                    } else {
+                        // Single attachment
+                        $message->attachData($attachment['data'], $attachment['name'], [
+                            'mime' => $attachment['mime']
+                        ]);
+                    }
                 }
             });
 

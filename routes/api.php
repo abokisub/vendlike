@@ -48,8 +48,8 @@ Route::post('login/verify/user', [AuthController::class, 'login']);
 Route::post('email-receipt', [AppController::class, 'emailReceipt']);
 
 // Support & AI Bot Routes
-Route::post('chat/aboki', [SupportController::class, 'chatAboki'])->middleware('auth.token');
-Route::post('chat/vendlike', [SupportController::class, 'chatAboki'])->middleware('auth.token'); // VendLike AI alias
+Route::post('chat/aboki', [SupportController::class, 'chatVendLike'])->middleware('auth.token');
+Route::post('chat/vendlike', [SupportController::class, 'chatVendLike'])->middleware('auth.token'); // VendLike AI alias
 Route::post('support/tickets/create', [SupportController::class, 'createTicket'])->middleware('auth.token');
 Route::post('support/chat/{ticketId}/send/user', [SupportController::class, 'sendUserMessage'])->middleware('auth.token');
 Route::post('support/typing', [SupportController::class, 'typing'])->middleware('auth.token');

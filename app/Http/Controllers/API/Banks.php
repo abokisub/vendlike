@@ -85,16 +85,16 @@ class Banks extends Controller
                     } else {
                         $pointwave_charge_display = '₦' . $settings->pointwave_charge_value;
                     }
-                    
+
                     // Use "PALMPAY BANKS" to differentiate from Xixapay's "PALMPAY"
                     $bank = [
-                        "name" => "PALMPAY BANKS",
+                        "name" => "Palmpay Limited",
                         "account" => $auth_user->pointwave_account_number,
                         "accountType" => false,
                         'charges' => $pointwave_charge_display,
                         'provider' => 'pointwave'
                     ];
-                    
+
                     if ($default_provider === 'pointwave') {
                         $default_bank = $bank;
                     } else {
@@ -111,7 +111,7 @@ class Banks extends Controller
                         'charges' => $palmpay_charge . ' NAIRA',
                         'provider' => 'palmpay'
                     ];
-                    
+
                     if ($default_provider === 'palmpay') {
                         $default_bank = $bank;
                     } else {
@@ -128,7 +128,7 @@ class Banks extends Controller
                         'charges' => $paystack_charge . ' NAIRA',
                         'provider' => 'wema'
                     ];
-                    
+
                     if ($default_provider === 'wema') {
                         $default_bank = $bank;
                     } else {
@@ -151,7 +151,7 @@ class Banks extends Controller
                             'charges' => $monnify_charge . '%',
                             'provider' => 'monnify'
                         ];
-                        
+
                         if ($default_provider === 'monnify') {
                             $default_bank = $bank;
                         } else {
@@ -169,7 +169,7 @@ class Banks extends Controller
                         'charges' => $palmpay_charge . ' NAIRA',
                         'provider' => 'xixapay'
                     ];
-                    
+
                     if ($default_provider === 'xixapay') {
                         $default_bank = $bank;
                     } else {

@@ -25,7 +25,7 @@ class AdminUserSeeder extends Seeder
             ['username' => 'Habukhan'],
             [
                 'name' => 'Habukhan Admin',
-                'email' => 'admin@kobopoint.com',
+                'email' => 'admin@vendlike.com',
                 'phone' => '08078497075',
                 'password' => $hashedPassword,
                 'apikey' => $apiKey,

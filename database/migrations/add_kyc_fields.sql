@@ -1,8 +1,8 @@
 -- Run this script to apply KYC migration
--- Command: mysql -u root -p kobopoint < database/migrations/add_kyc_fields.sql
+-- Command: mysql -u root -p vendlike < database/migrations/add_kyc_fields.sql
 -- Or copy-paste into MySQL Workbench/phpMyAdmin
 
-USE kobopoint; -- Change to your database name
+USE vendlike; -- Change to your database name
 
 -- Add KYC fields to user table
 ALTER TABLE `user` ADD COLUMN IF NOT EXISTS `customer_id` VARCHAR(255) NULL COMMENT 'Xixapay Customer ID' AFTER `apikey`;

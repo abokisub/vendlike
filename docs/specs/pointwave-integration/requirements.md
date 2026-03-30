@@ -2,22 +2,22 @@
 
 ## Introduction
 
-This document specifies the requirements for integrating the PointWave payment gateway (via PalmPay) into the Kobopoint Laravel VTU/Payment platform. The integration will enable users to create virtual accounts for receiving payments, send bank transfers to Nigerian bank accounts, and receive real-time payment notifications via webhooks. The system will support KYC verification, transaction management, and administrative controls for the PointWave provider.
+This document specifies the requirements for integrating the PointWave payment gateway (via PalmPay) into the VendLike Laravel VTU/Payment platform. The integration will enable users to create virtual accounts for receiving payments, send bank transfers to Nigerian bank accounts, and receive real-time payment notifications via webhooks. The system will support KYC verification, transaction management, and administrative controls for the PointWave provider.
 
 ## Glossary
 
 - **PointWave_System**: The PointWave payment gateway service that provides virtual accounts, bank transfers, and payment processing capabilities
-- **Kobopoint_Platform**: The existing Laravel 8 VTU/Payment platform that will integrate with PointWave
+- **VendLike_Platform**: The existing Laravel 8 VTU/Payment platform that will integrate with PointWave
 - **Virtual_Account**: A PalmPay bank account number assigned to a user for receiving payments
-- **User**: A registered customer on the Kobopoint platform who can create virtual accounts and initiate transfers
+- **User**: A registered customer on the VendLike platform who can create virtual accounts and initiate transfers
 - **Admin**: A platform administrator who manages PointWave settings and monitors transactions
-- **Webhook**: An HTTP callback that PointWave sends to notify Kobopoint of payment events
+- **Webhook**: An HTTP callback that PointWave sends to notify VendLike of payment events
 - **KYC**: Know Your Customer verification using BVN (Bank Verification Number) or NIN (National Identification Number)
 - **Transfer**: A bank transfer from the PointWave wallet to a Nigerian bank account
 - **Deposit**: An incoming payment to a user's virtual account
 - **Transaction_Record**: A database entry tracking a PointWave transaction (deposit, transfer, or withdrawal)
-- **Wallet**: A user's balance on the Kobopoint platform
-- **Provider**: A payment service integrated into Kobopoint (e.g., PointWave, Xixapay, Paystack, Monnify)
+- **Wallet**: A user's balance on the VendLike platform
+- **Provider**: A payment service integrated into VendLike (e.g., PointWave, Xixapay, Paystack, Monnify)
 - **HMAC_Signature**: A cryptographic signature used to verify webhook authenticity
 - **Idempotency_Key**: A unique identifier to prevent duplicate API requests
 - **Bank_Code**: A unique identifier for Nigerian banks (e.g., "058" for GTBank)
@@ -28,11 +28,11 @@ This document specifies the requirements for integrating the PointWave payment g
 
 ### Requirement 1: Virtual Account Creation
 
-**User Story:** As a user, I want to create a PalmPay virtual account, so that I can receive payments directly into my Kobopoint wallet.
+**User Story:** As a user, I want to create a PalmPay virtual account, so that I can receive payments directly into my VendLike wallet.
 
 #### Acceptance Criteria
 
-1. WHEN a user registers on Kobopoint_Platform, THE System SHALL create a Virtual_Account for the user automatically
+1. WHEN a user registers on VendLike_Platform, THE System SHALL create a Virtual_Account for the user automatically
 2. WHEN a user requests virtual account creation manually, THE System SHALL create a Virtual_Account within 5 seconds
 3. THE System SHALL store the virtual account details (account_number, bank_name, account_name, customer_id) in the database
 4. THE System SHALL link each Virtual_Account to exactly one User
@@ -254,7 +254,7 @@ This document specifies the requirements for integrating the PointWave payment g
 
 ### Requirement 14: User Interface Integration
 
-**User Story:** As a user, I want PointWave features integrated into the existing Kobopoint interface, so that I can access them easily.
+**User Story:** As a user, I want PointWave features integrated into the existing VendLike interface, so that I can access them easily.
 
 #### Acceptance Criteria
 
@@ -377,4 +377,4 @@ This document specifies the requirements for integrating the PointWave payment g
 
 ## Summary
 
-This requirements document defines 20 functional requirements with 200 acceptance criteria for integrating PointWave payment gateway into the Kobopoint platform. The integration covers virtual account creation, bank transfers, webhook notifications, KYC verification, transaction management, admin controls, security, error handling, and testing. All requirements follow EARS patterns and comply with INCOSE quality rules for clarity, testability, and completeness.
+This requirements document defines 20 functional requirements with 200 acceptance criteria for integrating PointWave payment gateway into the VendLike platform. The integration covers virtual account creation, bank transfers, webhook notifications, KYC verification, transaction management, admin controls, security, error handling, and testing. All requirements follow EARS patterns and comply with INCOSE quality rules for clarity, testability, and completeness.

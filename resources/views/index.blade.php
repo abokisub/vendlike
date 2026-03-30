@@ -27,10 +27,10 @@
     <meta http-equiv="Expires" content="0">
 
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="KoboPoint - Digital Services Platform" />
+    <meta name="description" content="VendLike - Digital Services Platform" />
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <title>{{ env('APP_NAME', 'KoboPoint') }}</title>
+    <title>{{ env('APP_NAME', 'VendLike') }}</title>
 
     <script>
         // Cache-Nuke: Force fresh load on deployment without logging out users

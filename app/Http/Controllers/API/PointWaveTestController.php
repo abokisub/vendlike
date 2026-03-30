@@ -143,7 +143,7 @@ class PointWaveTestController extends Controller
         $testData = [
             'first_name' => 'Test',
             'last_name' => 'User',
-            'email' => 'test' . time() . '@kobopoint.com',
+            'email' => 'test' . time() . '@vendlike.com',
             'phone_number' => '080' . rand(10000000, 99999999),
             'account_type' => 'static',
             'external_reference' => 'TEST-' . time()

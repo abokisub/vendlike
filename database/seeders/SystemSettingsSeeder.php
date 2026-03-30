@@ -18,8 +18,8 @@ class SystemSettingsSeeder extends Seeder
         DB::table('general')->updateOrInsert(
             ['id' => 1],
             [
-                'app_name' => 'Kobopoint',
-                'app_email' => 'support@kobopoint.com',
+                'app_name' => 'VendLike',
+                'app_email' => 'support@vendlike.com',
                 'app_phone' => '08078497075',
                 'app_address' => 'Nigeria',
                 'currency' => 'NGN',

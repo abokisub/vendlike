@@ -4,7 +4,7 @@
 
 ### Purpose
 
-This design document specifies the technical architecture for integrating the PointWave payment gateway (via PalmPay) into the Kobopoint Laravel VTU/Payment platform. The integration enables users to create virtual accounts for receiving payments, send bank transfers to Nigerian bank accounts, and receive real-time payment notifications via webhooks.
+This design document specifies the technical architecture for integrating the PointWave payment gateway (via PalmPay) into the VendLike Laravel VTU/Payment platform. The integration enables users to create virtual accounts for receiving payments, send bank transfers to Nigerian bank accounts, and receive real-time payment notifications via webhooks.
 
 ### Scope
 
@@ -2909,7 +2909,7 @@ Expected performance metrics:
 - **Virtual Account**: A PalmPay bank account number assigned to a user for receiving payments
 - **Customer ID**: PointWave's unique identifier for a customer
 - **Transaction ID**: PointWave's unique identifier for a transaction
-- **Reference**: Kobopoint's unique identifier for a transaction
+- **Reference**: VendLike's unique identifier for a transaction
 - **Idempotency Key**: A unique identifier to prevent duplicate API requests
 - **HMAC**: Hash-based Message Authentication Code for webhook verification
 - **Tier**: KYC level that determines transaction limits

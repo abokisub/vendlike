@@ -41,12 +41,12 @@ class NotificationService
                     'channel_id' => $data['channel_id'] ?? 'high_importance_channel',
                     'audio_type' => $data['audio_type'] ?? null
                 ]);
-                
+
                 // Remove null values
-                $payload = array_filter($payload, function($value) {
+                $payload = array_filter($payload, function ($value) {
                     return $value !== null;
                 });
-                
+
                 // Debug logging
                 Log::info("Sending notification to {$user->username}", [
                     'title' => $data['title'],
@@ -55,7 +55,7 @@ class NotificationService
                     'audio_type' => $payload['audio_type'] ?? 'not_set',
                     'has_token' => !empty($user->app_token)
                 ]);
-                
+
                 $this->firebaseService->sendNotification(
                     $user->app_token,
                     $data['title'],
@@ -65,8 +65,7 @@ class NotificationService
                     true  // DATA-ONLY: Let Flutter handle display for foreground notifications
                 );
             }
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error("Notification Delivery Failed: " . $e->getMessage(), [
                 'user' => $user->username,
                 'type' => $data['type'] ?? 'unspecified'
@@ -283,8 +282,8 @@ class NotificationService
     {
         $this->storeAndPush($user, [
             'type' => 'welcome',
-            'title' => "🎉 Welcome to KoboPoint!",
-            'message' => "Hi {$user->name}, welcome aboard! Your account has been created successfully. Start enjoying seamless transactions today!"
+            'title' => "🎉 Welcome to VendLike!",
+            'message' => "Hi {$user->name}, welcome aboard! Your account has been created successfully. Start enjoying seamless transactions with VendLike today!"
         ]);
     }
 
@@ -296,7 +295,7 @@ class NotificationService
         $this->storeAndPush($user, [
             'type' => 'login',
             'title' => "👋 Welcome Back!",
-            'message' => "Hi {$user->name}, you've successfully logged in to your KoboPoint account."
+            'message' => "Hi {$user->name}, you've successfully logged in to your VendLike account."
         ]);
     }
 
@@ -334,8 +333,7 @@ class NotificationService
         if ($status === 'approved') {
             $title = "KYC Approved";
             $message = "Congratulations! Your KYC verification has been approved. You now have full access.";
-        }
-        else {
+        } else {
             $title = "KYC Update";
             $message = "Your KYC status is {$status}." . ($reason ? " Reason: {$reason}" : "");
         }

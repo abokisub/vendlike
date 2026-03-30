@@ -9,6 +9,8 @@ class GiftCardRedemption extends Model
 {
     use HasFactory;
 
+    protected $appends = ['image_urls', 'status_color', 'image_paths'];
+
     protected $fillable = [
         'user_id',
         'gift_card_type_id',
@@ -135,7 +137,7 @@ class GiftCardRedemption extends Model
      */
     public function getStatusColorAttribute()
     {
-        return match($this->status) {
+        return match ($this->status) {
             'pending' => 'warning',
             'approved' => 'success',
             'declined' => 'error',

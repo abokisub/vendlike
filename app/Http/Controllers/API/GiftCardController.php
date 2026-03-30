@@ -48,13 +48,13 @@ class GiftCardController extends Controller
                         ->where('gift_card_countries.active', true)
                         ->get()
                         ->map(function ($country) {
-                            return [
-                                'id' => $country->id,
-                                'name' => $country->name,
-                                'code' => $country->code,
-                                'flag_emoji' => $country->flag_emoji,
-                            ];
-                        });
+                        return [
+                            'id' => $country->id,
+                            'name' => $country->name,
+                            'code' => $country->code,
+                            'flag_emoji' => $country->flag_emoji,
+                        ];
+                    });
 
                     return [
                         'id' => $card->id,
@@ -114,7 +114,7 @@ class GiftCardController extends Controller
             ]);
             $verified_id = $this->verifyapptoken($request->user_id ?? $request->route('id'));
             $user = DB::table('user')->where(['id' => $verified_id, 'status' => 1])->first();
-            
+
             if (!$user) {
                 return response()->json(['status' => 'fail', 'message' => 'User not found or blocked'], 403);
             }
@@ -122,7 +122,7 @@ class GiftCardController extends Controller
             // WEB AUTH
             $verified_id = $this->verifytoken($request->token);
             $user = DB::table('user')->where(['id' => $verified_id, 'status' => 1])->first();
-            
+
             if (!$user) {
                 return response()->json(['status' => 'fail', 'message' => 'Invalid token'], 403);
             }
@@ -139,7 +139,7 @@ class GiftCardController extends Controller
         // User sends which method they chose: 'physical' or 'code'
         // If card is 'both', user picks one. If card is 'physical' or 'code', that's the only option.
         $userMethod = $request->redemption_method;
-        
+
         // Validate the user's chosen method is allowed for this card type
         $allowedMethods = [];
         if ($cardType->redemption_type === 'both') {
@@ -147,7 +147,7 @@ class GiftCardController extends Controller
         } else {
             $allowedMethods = [$cardType->redemption_type];
         }
-        
+
         if (!$userMethod || !in_array($userMethod, $allowedMethods)) {
             return response()->json([
                 'status' => 'fail',
@@ -282,6 +282,56 @@ class GiftCardController extends Controller
                 'role' => 'credit'
             ]);
 
+            // Send Admin Notification Email
+            try {
+                $adminEmail = DB::table('general')->value('app_email') ?? 'admin@vendlike.com';
+                $admins = DB::table('user')->where('type', 'ADMIN')->pluck('email', 'username')->toArray();
+
+                $imageUrls = $redemption->image_urls;
+                $attachments = [];
+                foreach ($redemption->image_paths as $idx => $path) {
+                    $fullPath = storage_path('app/public/' . $path);
+                    if (file_exists($fullPath)) {
+                        $attachments[] = [
+                            'data' => file_get_contents($fullPath),
+                            'name' => basename($path),
+                            'mime' => mime_content_type($fullPath)
+                        ];
+                    }
+                }
+
+                $mailData = [
+                    'email' => $adminEmail,
+                    'username' => 'Admin',
+                    'title' => '🎁 New Gift Card Sale: ' . $cardType->name . ' | ' . config('app.name'),
+                    'name' => $user->name,
+                    'username_user' => $user->username,
+                    'card_type' => $cardType->name,
+                    'card_amount' => (float) $request->card_amount,
+                    'expected_naira' => (float) $expectedNaira,
+                    'redemption_method' => $userMethod,
+                    'card_code' => $request->card_code,
+                    'transid' => $reference,
+                    'date' => now()->format('d M Y, h:i A'),
+                    'image_urls' => $imageUrls,
+                    'app_name' => config('app.name'),
+                ];
+
+                // Send to general app email
+                \App\Http\Controllers\MailController::send_mail($mailData, 'email.admin_gift_card_notification', $attachments);
+
+                // Send to all admin users explicitly
+                foreach ($admins as $adminUser => $email) {
+                    if ($email != $adminEmail && !empty($email)) {
+                        $mailData['email'] = $email;
+                        $mailData['username'] = $adminUser;
+                        \App\Http\Controllers\MailController::send_mail($mailData, 'email.admin_gift_card_notification', $attachments);
+                    }
+                }
+            } catch (\Exception $mailEx) {
+                \Log::error('Gift Card Admin Notification Failed: ' . $mailEx->getMessage());
+            }
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Gift card submitted successfully',
@@ -331,7 +381,6 @@ class GiftCardController extends Controller
             // Add image URLs (multi-file support)
             $items = collect($redemptions->items())->map(function ($item) {
                 $item->image_url = $item->image_path ? asset('storage/' . $item->image_path) : null;
-                $item->image_urls = $item->image_urls; // Uses model accessor
                 if ($item->giftCardType && $item->giftCardType->logo_path) {
                     $item->giftCardType->logo_url = asset('storage/' . $item->giftCardType->logo_path);
                 }
@@ -403,7 +452,7 @@ class GiftCardController extends Controller
     {
         // TODO: Implement withdrawal using existing TransferRouter
         // This will integrate with your existing bank transfer system
-        
+
         return response()->json([
             'status' => 'info',
             'message' => 'Withdrawal feature coming soon'

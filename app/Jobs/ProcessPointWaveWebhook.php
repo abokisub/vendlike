@@ -195,7 +195,7 @@ class ProcessPointWaveWebhook implements ShouldQueue
 
         // Get platform charge settings
         $settings = DB::table('settings')->first();
-        $kobopointFee = 0;
+        $vendlikeFee = 0;
         $finalAmount = 0;
         
         if ($settings) {
@@ -207,7 +207,7 @@ class ProcessPointWaveWebhook implements ShouldQueue
                 // When admin sets 0.0%, customer gets full deposit amount
                 // Business absorbs PointWave fees as marketing cost
                 $finalAmount = $amount; // Customer gets full ₦100
-                $kobopointFee = 0; // No fee charged to customer
+                $vendlikeFee = 0; // No fee charged to customer
                 
                 Log::info('Free deposit strategy applied', [
                     'customer_deposit' => $amount,
@@ -220,23 +220,23 @@ class ProcessPointWaveWebhook implements ShouldQueue
                 if ($chargeType === 'PERCENTAGE') {
                     // Calculate percentage fee on the original amount
                     $feeCap = floatval($settings->pointwave_charge_cap ?? 0);
-                    $kobopointFee = ($amount * $chargeValue) / 100;
+                    $vendlikeFee = ($amount * $chargeValue) / 100;
                     
                     // Apply cap if set
-                    if ($feeCap > 0 && $kobopointFee > $feeCap) {
-                        $kobopointFee = $feeCap;
+                    if ($feeCap > 0 && $vendlikeFee > $feeCap) {
+                        $vendlikeFee = $feeCap;
                     }
                 } elseif ($chargeType === 'FLAT') {
                     // Flat fee
-                    $kobopointFee = $chargeValue;
+                    $vendlikeFee = $chargeValue;
                 }
                 
                 // Customer pays platform fee, gets net amount
-                $finalAmount = $amount - $kobopointFee;
+                $finalAmount = $amount - $vendlikeFee;
                 
                 Log::info('Platform fee applied', [
                     'customer_deposit' => $amount,
-                    'platform_fee' => $kobopointFee,
+                    'platform_fee' => $vendlikeFee,
                     'customer_credited' => $finalAmount,
                     'pointwave_fee' => $fee
                 ]);
@@ -254,7 +254,7 @@ class ProcessPointWaveWebhook implements ShouldQueue
         DB::beginTransaction();
 
         try {
-            // Credit user wallet with final amount (after Kobopoint's fee)
+            // Credit user wallet with final amount (after VendLike's fee)
             $user->increment('bal', $finalAmount);
 
             // Create transaction record in pointwave_transactions table
@@ -263,7 +263,7 @@ class ProcessPointWaveWebhook implements ShouldQueue
                 'user_id' => $user->id,
                 'type' => 'deposit',
                 'amount' => $amount,
-                'fee' => $kobopointFee, // Only customer-facing fee (0 for free deposits)
+                'fee' => $vendlikeFee, // Only customer-facing fee (0 for free deposits)
                 'status' => 'completed',
                 'reference' => $reference,
                 'pointwave_transaction_id' => $transactionId,
@@ -276,8 +276,8 @@ class ProcessPointWaveWebhook implements ShouldQueue
 
             // Create message for transaction history
             $feeMessage = '';
-            if ($kobopointFee > 0) {
-                $feeMessage = sprintf(' (Fee: ₦%.2f)', $kobopointFee);
+            if ($vendlikeFee > 0) {
+                $feeMessage = sprintf(' (Fee: ₦%.2f)', $vendlikeFee);
             } else {
                 $feeMessage = ' (Free Deposit)';
             }
@@ -328,7 +328,7 @@ class ProcessPointWaveWebhook implements ShouldQueue
                 'user_id' => $user->id,
                 'customer_deposit' => $amount,
                 'pointwave_fee' => $fee,
-                'platform_fee_charged' => $kobopointFee,
+                'platform_fee_charged' => $vendlikeFee,
                 'customer_credited' => $finalAmount,
                 'transaction_id' => $transactionId,
                 'new_balance' => $user->bal,

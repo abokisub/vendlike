@@ -11,10 +11,10 @@ use Carbon\Carbon;
 class SupportController extends Controller
 {
     /**
-     * Aboki AI Chat Interface - FAQ ONLY MODE
+     * VendLike AI Chat Interface - FAQ ONLY MODE
      * AI acts as a guide, not a support agent
      */
-    public function chatAboki(Request $request)
+    public function chatVendLike(Request $request)
     {
         $user = $request->user();
         if (!$user) {
@@ -118,13 +118,34 @@ class SupportController extends Controller
     private function detectHumanHandoffKeywords($message)
     {
         $keywords = [
-            'human', 'human agent', 'customer support', 'support agent',
-            'agent', 'chat with agent', 'talk to someone', 'real person',
-            'complaint', 'report', 'ticket', 'help me',
-            'this is wrong', 'scam', 'fraud', 'my money', 'missing money',
-            'refund', 'reversal', 'not received', 'didn\'t get',
-            'account issue', 'transaction failed', 'money deducted',
-            'speak to someone', 'talk to agent', 'customer care', 'admin'
+            'human',
+            'human agent',
+            'customer support',
+            'support agent',
+            'agent',
+            'chat with agent',
+            'talk to someone',
+            'real person',
+            'complaint',
+            'report',
+            'ticket',
+            'help me',
+            'this is wrong',
+            'scam',
+            'fraud',
+            'my money',
+            'missing money',
+            'refund',
+            'reversal',
+            'not received',
+            'didn\'t get',
+            'account issue',
+            'transaction failed',
+            'money deducted',
+            'speak to someone',
+            'talk to agent',
+            'customer care',
+            'admin'
         ];
 
         $messageLower = strtolower($message);
@@ -147,12 +168,12 @@ class SupportController extends Controller
         DB::table('support_tickets')
             ->where('id', $ticket->id)
             ->update([
-            'status' => 'AWAITING_AGENT',
-            'chat_locked' => true,
-            'current_handler' => 'agent',
-            'escalated_at' => Carbon::now(),
-            'updated_at' => Carbon::now()
-        ]);
+                'status' => 'AWAITING_AGENT',
+                'chat_locked' => true,
+                'current_handler' => 'agent',
+                'escalated_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
 
         // 2. Send acknowledgment message
         $ackMessage = "Your support ticket has been created. Our team will respond shortly.";
@@ -345,7 +366,7 @@ class SupportController extends Controller
                     'email' => $admin->email,
                     'username' => $user->username,
                     'title' => 'SUPPORT ESCALATION',
-                    'sender_mail' => $general->app_email ?? 'support@kobopoint.com',
+                    'sender_mail' => $general->app_email ?? 'support@vendlike.com',
                     'user_email' => $user->email,
                     'app_name' => $general->app_name ?? 'App',
                     'website' => '',
@@ -366,8 +387,7 @@ class SupportController extends Controller
                     'title' => 'SUPPORT TICKET'
                 ]);
             }
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             \Log::error("Escalation Notification Failed: " . $e->getMessage());
         }
     }
