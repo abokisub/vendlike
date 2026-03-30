@@ -26,8 +26,8 @@
                     <tr>
                         <td style="text-align:center;">
                             <a href="{{ config('app.app_url') }}" title="logo" target="_blank">
-                                <img width="150" src="{{ config('app.app_url') . '/upload/welcome.png' }}" title="logo"
-                                    alt="{{ config('app.name') }}">
+                                <img width="150" src="{{ config('app.app_url') . '/assets/images/logo.png' }}"
+                                    title="logo" alt="{{ config('app.name') }}">
                             </a>
                         </td>
                     </tr>

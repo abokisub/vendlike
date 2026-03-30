@@ -2,7 +2,7 @@
   <div style="margin:50px auto;width:70%;padding:20px 0">
     <div style="border-bottom:1px solid #eee; text-align: center; padding-bottom: 20px;">
       <a href="{{ config('app.app_url') }}" style="font-size:1.4em;color: #00466a;text-decoration:none;font-weight:600">
-        <img width="150" src="{{ config('app.app_url') . '/upload/welcome.png' }}" alt="{{ config('app.name') }}">
+        <img width="150" src="{{ config('app.app_url') . '/assets/images/logo.png' }}" alt="{{ config('app.name') }}">
       </a>
     </div>
     <p style="font-size:1.1em"> <span>Account Password Reseted</span></p>
