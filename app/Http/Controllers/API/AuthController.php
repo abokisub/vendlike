@@ -587,7 +587,7 @@ class AuthController extends Controller
                     //if success
                     $data = [
                         'status' => '1',
-                        'otp' => null
+                        'otp' => $request->isReset ? $user->otp : null
                     ];
                     $tableid = [
                         'id' => $user->id
