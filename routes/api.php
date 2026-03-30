@@ -42,7 +42,7 @@ use App\Http\Controllers\API\SupportController;
 Route::get('account/my-account/{id}', [AuthController::class, 'account']);
 Route::post('register', [AuthController::class, 'register']);
 Route::post('verify/user/account', [AuthController::class, 'verify']);
-Route::post('create-pin', [AuthController::class, 'createPin']);
+Route::post('create-pin', [AuthController::class, 'createPin'])->middleware('auth.token');
 Route::get('website/app/setting', [AppController::class, 'system']);
 Route::post('login/verify/user', [AuthController::class, 'login']);
 Route::post('email-receipt', [AppController::class, 'emailReceipt']);

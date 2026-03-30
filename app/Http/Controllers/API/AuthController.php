@@ -994,13 +994,7 @@ class AuthController extends Controller
      */
     public function createPin(Request $request)
     {
-        $authHeader = $request->header('Authorization');
-        if (strpos($authHeader, 'Bearer ') === 0) {
-            $authHeader = substr($authHeader, 7);
-        }
-
-        // Identify user by token (habukhan_key)
-        $user = DB::table('user')->where('habukhan_key', $authHeader)->first();
+        $user = $request->user();
 
         if ($user) {
             $validator = Validator::make($request->all(), [
