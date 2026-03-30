@@ -110,9 +110,9 @@
         <div class="container">
             <!-- Header -->
             <div class="header">
-                {{-- Official Vendlike Logo --}}
-                <img src="{{ config('app.app_url') . '/assets/images/logo.png' }}" alt="{{ config('app.name') }}"
-                    style="max-width: 180px;">
+                {{-- Ensure you have a logo at public/upload/logo.png or adapt path --}}
+                <img src="{{ asset('upload/welcome.png') }}" alt="{{ config('app.name') }}"
+                    style="max-width: 150px;">
             </div>
 
             <!-- Main Content -->
