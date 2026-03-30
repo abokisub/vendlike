@@ -581,6 +581,12 @@ class AuthController extends Controller
                     'default_account' => $active_default,
                     'account_name' => isset($user->account_name) ? $user->account_name : null,
                     'is_bvn' => $user->bvn == null ? false : true,
+                    'bvn' => $user->bvn,
+                    'nin' => $user->nin,
+                    'kyc_tier' => 'tier_' . ($user->kyc ?? 0),
+                    'tier' => (int) ($user->kyc ?? 0),
+                    'single_limit' => ($user->kyc == 2) ? 500000 : (($user->kyc == 1) ? 50000 : 3000),
+                    'daily_limit' => ($user->kyc == 2) ? 1000000 : (($user->kyc == 1) ? 100000 : 10000),
                     'theme' => DB::table('user_settings')->where('user_id', $user->id)->value('theme') ?? 'light'
                 ];
                 if ($user->otp == $request->code) {

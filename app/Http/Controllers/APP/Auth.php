@@ -1043,10 +1043,11 @@ class Auth extends Controller
                     'about' => $user->about,
                     'apikey' => $user->apikey,
                     'notif' => DB::table('notif')->where(['username' => $user->username, 'habukhan' => 0])->count(),
-                    // KYC TIER AND LIMITS
-                    'kyc_tier' => $user->kyc_tier ?? 'tier_0',
-                    'single_limit' => $user->single_limit ?? 3000,
-                    'daily_limit' => $user->daily_limit ?? 10000,
+                    // KYC TIER AND LIMITS - Derived from 'kyc' column
+                    'kyc_tier' => 'tier_' . ($user->kyc ?? 0),
+                    'tier' => (int) ($user->kyc ?? 0),
+                    'single_limit' => ($user->kyc == 2) ? 500000 : (($user->kyc == 1) ? 50000 : 3000),
+                    'daily_limit' => ($user->kyc == 2) ? 1000000 : (($user->kyc == 1) ? 100000 : 10000),
                     'daily_used' => $user->daily_used ?? 0,
                 ];
 
@@ -1154,93 +1155,93 @@ class Auth extends Controller
         $user = $this->resolveUserFromHeader($request);
         if ($user && $user->status == 1) {
             if (DB::table('deposit')->where(['monify_ref' => $request->referrence_id])->count() == 0) {
-                    $sender = "https://api.monnify.com/api/v2/transactions/" . urlencode($request->referrence_id);
-                    $adex_key = DB::table('habukhan_key')->first();
-                    $base_monnify = base64_encode($adex_key->mon_app_key . ':' . $adex_key->mon_sk_key);
-                    $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, 'https://api.monnify.com/api/v1/auth/login');
-                    curl_setopt($ch, CURLOPT_POST, 1);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-                    curl_setopt(
-                        $ch,
-                        CURLOPT_HTTPHEADER,
-                        [
-                            "Authorization: Basic " . $base_monnify,
-                        ]
-                    );
-                    $json = curl_exec($ch);
-                    curl_close($ch);
-                    $result = json_decode($json, true);
-                    if (isset($result['responseBody']['accessToken'])) {
-                        $accessToken = $result['responseBody']['accessToken'];
-                    } else {
-                        $accessToken = null;
-                    }
-                    $curl = curl_init();
-                    curl_setopt_array($curl, array(
-                        CURLOPT_URL => $sender,
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_ENCODING => "",
-                        CURLOPT_MAXREDIRS => 10,
-                        CURLOPT_TIMEOUT => 0,
-                        CURLOPT_FOLLOWLOCATION => true,
-                        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                        CURLOPT_CUSTOMREQUEST => "GET",
-                        CURLOPT_HTTPHEADER => array(
-                            "Authorization: Bearer " . $accessToken,
-                            "Content-Type: application/json"
-                        ),
-                    ));
-                    $res = curl_exec($curl);
-                    $response = json_decode($res, true);
-                    if (isset($response)) {
-                        if (isset($response['responseBody']['paymentStatus'])) {
-                            $amount_paid = $response["responseBody"]["amountPaid"];
-                            $charges = ($amount_paid / 100) * $this->core()->monnify_charge;
-                            $transid = $this->purchase_ref('APP_FUNDING_');
-                            $credit = $amount_paid - $charges;
-                            DB::table('deposit')->insert([
+                $sender = "https://api.monnify.com/api/v2/transactions/" . urlencode($request->referrence_id);
+                $adex_key = DB::table('habukhan_key')->first();
+                $base_monnify = base64_encode($adex_key->mon_app_key . ':' . $adex_key->mon_sk_key);
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, 'https://api.monnify.com/api/v1/auth/login');
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt(
+                    $ch,
+                    CURLOPT_HTTPHEADER,
+                    [
+                        "Authorization: Basic " . $base_monnify,
+                    ]
+                );
+                $json = curl_exec($ch);
+                curl_close($ch);
+                $result = json_decode($json, true);
+                if (isset($result['responseBody']['accessToken'])) {
+                    $accessToken = $result['responseBody']['accessToken'];
+                } else {
+                    $accessToken = null;
+                }
+                $curl = curl_init();
+                curl_setopt_array($curl, array(
+                    CURLOPT_URL => $sender,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_ENCODING => "",
+                    CURLOPT_MAXREDIRS => 10,
+                    CURLOPT_TIMEOUT => 0,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                    CURLOPT_CUSTOMREQUEST => "GET",
+                    CURLOPT_HTTPHEADER => array(
+                        "Authorization: Bearer " . $accessToken,
+                        "Content-Type: application/json"
+                    ),
+                ));
+                $res = curl_exec($curl);
+                $response = json_decode($res, true);
+                if (isset($response)) {
+                    if (isset($response['responseBody']['paymentStatus'])) {
+                        $amount_paid = $response["responseBody"]["amountPaid"];
+                        $charges = ($amount_paid / 100) * $this->core()->monnify_charge;
+                        $transid = $this->purchase_ref('APP_FUNDING_');
+                        $credit = $amount_paid - $charges;
+                        DB::table('deposit')->insert([
+                            'username' => $user->username,
+                            'amount' => $amount_paid,
+                            'oldbal' => $user->bal,
+                            'newbal' => $user->bal,
+                            'wallet_type' => 'User Wallet',
+                            'type' => 'AutoMated Bank Transfer (APP)',
+                            'credit_by' => 'Monnify Automated Bank Transfer (APP)',
+                            'date' => $this->system_date(),
+                            'status' => 0,
+                            'transid' => $transid,
+                            'charges' => $charges,
+                            'monify_ref' => $request->referrence_id
+                        ]);
+                        $trans_status = $response['responseBody']['paymentStatus'];
+                        if (strtolower($trans_status) == 'paid') {
+                            DB::table('deposit')->where(['monify_ref' => $request->referrence_id, 'status' => 0])->update(['status' => 1, 'oldbal' => $user->bal, 'newbal' => $user->bal + $credit]);
+                            DB::table('user')->where(['id' => $user->id])->update(['bal' => $user->bal + $credit]);
+                            DB::table('notif')->insert([
                                 'username' => $user->username,
-                                'amount' => $amount_paid,
-                                'oldbal' => $user->bal,
-                                'newbal' => $user->bal,
-                                'wallet_type' => 'User Wallet',
-                                'type' => 'AutoMated Bank Transfer (APP)',
-                                'credit_by' => 'Monnify Automated Bank Transfer (APP)',
+                                'message' => 'Account Credited By Monnify ATM (APP) ₦' . number_format($credit, 2),
                                 'date' => $this->system_date(),
-                                'status' => 0,
-                                'transid' => $transid,
-                                'charges' => $charges,
-                                'monify_ref' => $request->referrence_id
+                                'adex' => 0
                             ]);
-                            $trans_status = $response['responseBody']['paymentStatus'];
-                            if (strtolower($trans_status) == 'paid') {
-                                DB::table('deposit')->where(['monify_ref' => $request->referrence_id, 'status' => 0])->update(['status' => 1, 'oldbal' => $user->bal, 'newbal' => $user->bal + $credit]);
-                                DB::table('user')->where(['id' => $user->id])->update(['bal' => $user->bal + $credit]);
-                                DB::table('notif')->insert([
-                                    'username' => $user->username,
-                                    'message' => 'Account Credited By Monnify ATM (APP) ₦' . number_format($credit, 2),
-                                    'date' => $this->system_date(),
-                                    'adex' => 0
-                                ]);
-                                // app notification (Modern Admin SDK)
-                                if ($user->app_token) {
-                                    $firebase = new FirebaseService();
-                                    $firebase->sendNotification(
-                                        $user->app_token,
-                                        config('app.name'),
-                                        'Account Has Been Credited By Monnify ATM (APP) ₦' . number_format($credit, 2),
-                                        [
-                                            'type' => 'transaction',
-                                            'action' => 'deposit',
-                                            'channel_id' => 'high_importance_channel'
-                                        ]
-                                    );
-                                }
-                                }
+                            // app notification (Modern Admin SDK)
+                            if ($user->app_token) {
+                                $firebase = new FirebaseService();
+                                $firebase->sendNotification(
+                                    $user->app_token,
+                                    config('app.name'),
+                                    'Account Has Been Credited By Monnify ATM (APP) ₦' . number_format($credit, 2),
+                                    [
+                                        'type' => 'transaction',
+                                        'action' => 'deposit',
+                                        'channel_id' => 'high_importance_channel'
+                                    ]
+                                );
                             }
                         }
                     }
+                }
+            }
         } else {
             return response()->json([
                 'message' => 'Unauthorised',
@@ -1498,57 +1499,57 @@ class Auth extends Controller
 
         if ($user && $user->status == 1) {
             $adex = $user;
-                // validate form
-                $main_validator = validator::make($request->all(), [
-                    'network' => 'required',
-                    //'network_type' => 'required',
-                ]);
-                // validate user type
-                if ($adex->type == 'SMART') {
-                    $user_type = 'smart';
-                } else if ($adex->type == 'AGENT') {
-                    $user_type = 'agent';
-                } else if ($adex->type == 'AWUF') {
-                    $user_type = 'awuf';
-                } else if ($adex->type == 'API') {
-                    $user_type = 'api';
-                } else {
-                    $user_type = 'special';
-                }
-                if ($main_validator->fails()) {
-                    return response()->json([
-                        'message' => $main_validator->errors()->first(),
-                        'status' => 403
-                    ])->setStatusCode(403);
-                } else {
-                    if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
-                        $get_network = DB::table('network')->where('plan_id', $request->network)->first();
-
-                        $all_plan = DB::table('data_card_plan')->where(['network' => $get_network->network, 'plan_status' => 1]);
-                        if ($all_plan->count() > 0) {
-                            foreach ($all_plan->get() as $adex => $plan) {
-                                $data_plan[] = ['name' => $plan->name . $plan->plan_size . ' ' . $plan->plan_type . ' = ₦' . number_format($plan->$user_type, 2) . ' ' . $plan->plan_day, 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
-                            }
-                        } else {
-                            $data_plan = [];
-                        }
-                        return response()->json([
-                            'status' => 'success',
-                            'data' => $data_plan,
-                        ]);
-                    } else {
-                        return response()->json([
-                            'message' => 'please select network'
-                        ])->setStatusCode(403);
-                    }
-                }
+            // validate form
+            $main_validator = validator::make($request->all(), [
+                'network' => 'required',
+                //'network_type' => 'required',
+            ]);
+            // validate user type
+            if ($adex->type == 'SMART') {
+                $user_type = 'smart';
+            } else if ($adex->type == 'AGENT') {
+                $user_type = 'agent';
+            } else if ($adex->type == 'AWUF') {
+                $user_type = 'awuf';
+            } else if ($adex->type == 'API') {
+                $user_type = 'api';
             } else {
-                return response()->json([
-                    'status' => 403,
-                    'message' => 'Not Authorised'
-                ])->setStatusCode(403);
+                $user_type = 'special';
             }
+            if ($main_validator->fails()) {
+                return response()->json([
+                    'message' => $main_validator->errors()->first(),
+                    'status' => 403
+                ])->setStatusCode(403);
+            } else {
+                if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
+                    $get_network = DB::table('network')->where('plan_id', $request->network)->first();
+
+                    $all_plan = DB::table('data_card_plan')->where(['network' => $get_network->network, 'plan_status' => 1]);
+                    if ($all_plan->count() > 0) {
+                        foreach ($all_plan->get() as $adex => $plan) {
+                            $data_plan[] = ['name' => $plan->name . $plan->plan_size . ' ' . $plan->plan_type . ' = ₦' . number_format($plan->$user_type, 2) . ' ' . $plan->plan_day, 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
+                        }
+                    } else {
+                        $data_plan = [];
+                    }
+                    return response()->json([
+                        'status' => 'success',
+                        'data' => $data_plan,
+                    ]);
+                } else {
+                    return response()->json([
+                        'message' => 'please select network'
+                    ])->setStatusCode(403);
+                }
+            }
+        } else {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Not Authorised'
+            ])->setStatusCode(403);
         }
+    }
     public function RechargeCardPlans(Request $request)
     {
         $user = $this->resolveUserFromHeader($request);
@@ -1556,57 +1557,57 @@ class Auth extends Controller
         if ($user && $user->status == 1) {
             $adex = $user;
 
-                // validate form
-                $main_validator = validator::make($request->all(), [
-                    'network' => 'required',
-                    //'network_type' => 'required',
-                ]);
-                // validate user type
-                if ($adex->type == 'SMART') {
-                    $user_type = 'smart';
-                } else if ($adex->type == 'AGENT') {
-                    $user_type = 'agent';
-                } else if ($adex->type == 'AWUF') {
-                    $user_type = 'awuf';
-                } else if ($adex->type == 'API') {
-                    $user_type = 'api';
-                } else {
-                    $user_type = 'special';
-                }
-                if ($main_validator->fails()) {
-                    return response()->json([
-                        'message' => $main_validator->errors()->first(),
-                        'status' => 403
-                    ])->setStatusCode(403);
-                } else {
-                    if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
-                        $get_network = DB::table('network')->where('plan_id', $request->network)->first();
-
-                        $all_plan = DB::table('recharge_card_plan')->where(['network' => $get_network->network, 'plan_status' => 1]);
-                        if ($all_plan->count() > 0) {
-                            foreach ($all_plan->get() as $adex => $plan) {
-                                $data_plan[] = ['name' => $plan->name . ' = ₦' . number_format($plan->$user_type, 2), 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
-                            }
-                        } else {
-                            $data_plan = [];
-                        }
-                        return response()->json([
-                            'status' => 'success',
-                            'data' => $data_plan,
-                        ]);
-                    } else {
-                        return response()->json([
-                            'message' => 'please select network'
-                        ])->setStatusCode(403);
-                    }
-                }
+            // validate form
+            $main_validator = validator::make($request->all(), [
+                'network' => 'required',
+                //'network_type' => 'required',
+            ]);
+            // validate user type
+            if ($adex->type == 'SMART') {
+                $user_type = 'smart';
+            } else if ($adex->type == 'AGENT') {
+                $user_type = 'agent';
+            } else if ($adex->type == 'AWUF') {
+                $user_type = 'awuf';
+            } else if ($adex->type == 'API') {
+                $user_type = 'api';
             } else {
-                return response()->json([
-                    'status' => 403,
-                    'message' => 'Not Authorised'
-                ])->setStatusCode(403);
+                $user_type = 'special';
             }
+            if ($main_validator->fails()) {
+                return response()->json([
+                    'message' => $main_validator->errors()->first(),
+                    'status' => 403
+                ])->setStatusCode(403);
+            } else {
+                if (DB::table('network')->where('plan_id', $request->network)->count() == 1) {
+                    $get_network = DB::table('network')->where('plan_id', $request->network)->first();
+
+                    $all_plan = DB::table('recharge_card_plan')->where(['network' => $get_network->network, 'plan_status' => 1]);
+                    if ($all_plan->count() > 0) {
+                        foreach ($all_plan->get() as $adex => $plan) {
+                            $data_plan[] = ['name' => $plan->name . ' = ₦' . number_format($plan->$user_type, 2), 'plan_id' => $plan->plan_id, 'amount' => '₦' . number_format($plan->$user_type, 2), 'id' => $plan->id];
+                        }
+                    } else {
+                        $data_plan = [];
+                    }
+                    return response()->json([
+                        'status' => 'success',
+                        'data' => $data_plan,
+                    ]);
+                } else {
+                    return response()->json([
+                        'message' => 'please select network'
+                    ])->setStatusCode(403);
+                }
+            }
+        } else {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Not Authorised'
+            ])->setStatusCode(403);
         }
+    }
 
     public function DataPlans(Request $request)
     {
