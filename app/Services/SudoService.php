@@ -318,7 +318,7 @@ class SudoService
     public function getCardDetails(string $cardId, bool $reveal = false): array
     {
         try {
-            $url = "{$this->vaultUrl}/vaults/{$this->vaultId}/cards/{$cardId}";
+            $url = "{$this->vaultUrl}/cards/{$cardId}";
             if ($reveal) {
                 $url .= '?reveal=true';
             }
