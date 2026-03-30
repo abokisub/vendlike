@@ -30,10 +30,10 @@ class SudoService
 
         if ($this->environment === 'production') {
             $this->apiUrl = 'https://api.sudo.africa';
-            $this->vaultUrl = 'https://vault.sudo.cards';
+            $this->vaultUrl = 'https://vault.sudo.africa/v1';
         } else {
-            $this->apiUrl = 'https://api.sandbox.sudo.cards';
-            $this->vaultUrl = 'https://vault.sandbox.sudo.cards';
+            $this->apiUrl = 'https://api.sandbox.sudo.cards/v1';
+            $this->vaultUrl = 'https://vault.sandbox.sudo.cards/v1';
         }
     }
 
@@ -45,13 +45,16 @@ class SudoService
             // Format DOB: Sudo requires YYYY/MM/DD
             $dob = '1990/01/01';
             if (!empty($data['dob'])) {
-                try { $dob = \Carbon\Carbon::parse($data['dob'])->format('Y/m/d'); } catch (\Exception $e) {}
+                try {
+                    $dob = \Carbon\Carbon::parse($data['dob'])->format('Y/m/d');
+                } catch (\Exception $e) {
+                }
             }
 
             $individual = [
                 'firstName' => $data['first_name'],
-                'lastName'  => $data['last_name'],
-                'dob'       => $dob,
+                'lastName' => $data['last_name'],
+                'dob' => $dob,
             ];
             if (!empty($data['bvn'])) {
                 $individual['identity'] = ['type' => 'BVN', 'number' => $data['bvn']];
@@ -61,17 +64,17 @@ class SudoService
 
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->post("{$this->apiUrl}/customers", [
-                    'type'         => 'individual',
-                    'name'         => $data['name'],
-                    'phoneNumber'  => $data['phone'] ?? null,
+                    'type' => 'individual',
+                    'name' => $data['name'],
+                    'phoneNumber' => $data['phone'] ?? null,
                     'emailAddress' => $data['email'] ?? null,
-                    'status'       => 'active',
+                    'status' => 'active',
                     'billingAddress' => [
-                        'line1'      => $data['address'] ?? '1 Lagos Street',
-                        'city'       => $data['city'] ?? 'Lagos',
-                        'state'      => $data['state'] ?? 'Lagos',
+                        'line1' => $data['address'] ?? '1 Lagos Street',
+                        'city' => $data['city'] ?? 'Lagos',
+                        'state' => $data['state'] ?? 'Lagos',
                         'postalCode' => $data['postal_code'] ?? '100001',
-                        'country'    => 'NG',
+                        'country' => 'NG',
                     ],
                     'individual' => $individual,
                 ]);
@@ -99,17 +102,20 @@ class SudoService
             // Format DOB
             $dob = '1990/01/01';
             if (!empty($data['dob'])) {
-                try { $dob = \Carbon\Carbon::parse($data['dob'])->format('Y/m/d'); } catch (\Exception $e) {}
+                try {
+                    $dob = \Carbon\Carbon::parse($data['dob'])->format('Y/m/d');
+                } catch (\Exception $e) {
+                }
             }
 
             $nameParts = explode(' ', $data['name'] ?? 'User', 2);
             $firstName = $nameParts[0];
-            $lastName  = $nameParts[1] ?? $nameParts[0];
+            $lastName = $nameParts[1] ?? $nameParts[0];
 
             $individual = [
                 'firstName' => $firstName,
-                'lastName'  => $lastName,
-                'dob'       => $dob,
+                'lastName' => $lastName,
+                'dob' => $dob,
             ];
             if (!empty($data['bvn'])) {
                 $individual['identity'] = ['type' => 'BVN', 'number' => $data['bvn']];
@@ -118,18 +124,18 @@ class SudoService
             }
 
             $payload = [
-                'type'         => 'individual',
-                'name'         => $data['name'] ?? 'User',
-                'status'       => 'active',
-                'phoneNumber'  => $data['phone'] ?? null,
+                'type' => 'individual',
+                'name' => $data['name'] ?? 'User',
+                'status' => 'active',
+                'phoneNumber' => $data['phone'] ?? null,
                 'emailAddress' => $data['email'] ?? null,
-                'individual'   => $individual,
+                'individual' => $individual,
                 'billingAddress' => [
-                    'line1'      => $data['address'] ?? '1 Lagos Street',
-                    'city'       => $data['city'] ?? 'Lagos',
-                    'state'      => $data['state'] ?? 'Lagos',
+                    'line1' => $data['address'] ?? '1 Lagos Street',
+                    'city' => $data['city'] ?? 'Lagos',
+                    'state' => $data['state'] ?? 'Lagos',
                     'postalCode' => $data['postal_code'] ?? '100001',
-                    'country'    => 'NG',
+                    'country' => 'NG',
                 ],
             ];
 
@@ -143,7 +149,8 @@ class SudoService
             }
 
             $errMsg = $response->json()['message'] ?? 'Failed to update customer';
-            if (is_array($errMsg)) $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to update customer';
+            if (is_array($errMsg))
+                $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to update customer';
             Log::error('Sudo updateCustomer failed', ['status' => $response->status(), 'body' => $response->body()]);
             return ['success' => false, 'message' => $errMsg];
         } catch (\Exception $e) {
@@ -182,16 +189,16 @@ class SudoService
             // programId approach returns 500 on Sudo sandbox/production.
             // Use explicit fields — brand, amount (min $3) are required without programId.
             $payload = [
-                'customerId'      => $customerId,
-                'type'            => 'virtual',
-                'currency'        => 'USD',
-                'issuerCountry'   => 'USA',
-                'brand'           => 'Visa',
-                'status'          => 'active',
-                'amount'          => $initialAmount,
-                'enable2FA'       => true,
-                'metadata'        => (object) [],
-                'debitAccountId'  => $this->debitAccountId,
+                'customerId' => $customerId,
+                'type' => 'virtual',
+                'currency' => 'USD',
+                'issuerCountry' => 'USA',
+                'brand' => 'Visa',
+                'status' => 'active',
+                'amount' => $initialAmount,
+                'enable2FA' => true,
+                'metadata' => (object) [],
+                'debitAccountId' => $this->debitAccountId,
                 'fundingSourceId' => $this->fundingSourceId,
             ];
 
@@ -202,21 +209,22 @@ class SudoService
                 $body = $response->json();
                 $card = $body['data'] ?? $body;
                 return [
-                    'success'      => true,
-                    'data'         => $card,
-                    'card_id'      => $card['_id'] ?? null,
-                    'masked_pan'   => $card['maskedPan'] ?? null,
-                    'brand'        => $card['brand'] ?? null,
+                    'success' => true,
+                    'data' => $card,
+                    'card_id' => $card['_id'] ?? null,
+                    'masked_pan' => $card['maskedPan'] ?? null,
+                    'brand' => $card['brand'] ?? null,
                     'expiry_month' => $card['expiryMonth'] ?? null,
-                    'expiry_year'  => $card['expiryYear'] ?? null,
-                    'last4'        => $card['last4'] ?? substr($card['maskedPan'] ?? '', -4),
-                    'balance'      => (float) ($card['balance'] ?? 0),
+                    'expiry_year' => $card['expiryYear'] ?? null,
+                    'last4' => $card['last4'] ?? substr($card['maskedPan'] ?? '', -4),
+                    'balance' => (float) ($card['balance'] ?? 0),
                 ];
             }
 
             Log::error('Sudo createVirtualCard failed', ['status' => $response->status(), 'body' => $response->body()]);
             $errMsg = $response->json()['message'] ?? 'Failed to create card';
-            if (is_array($errMsg)) $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to create card';
+            if (is_array($errMsg))
+                $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to create card';
             return ['success' => false, 'message' => $errMsg];
         } catch (\Exception $e) {
             Log::error('Sudo createVirtualCard exception: ' . $e->getMessage());
@@ -273,7 +281,7 @@ class SudoService
     {
         return $this->updateCardStatus($cardId, 'canceled', [
             'cancellation_reason' => $reason,
-            'credit_account_id'   => $this->debitAccountId, // required by Sudo to refund remaining balance
+            'credit_account_id' => $this->debitAccountId, // required by Sudo to refund remaining balance
         ]);
     }
 
@@ -310,15 +318,22 @@ class SudoService
     public function getCardDetails(string $cardId, bool $reveal = false): array
     {
         try {
-            $url = "{$this->vaultUrl}/cards/{$cardId}";
+            $url = "{$this->vaultUrl}/vaults/{$this->vaultId}/cards/{$cardId}";
             if ($reveal) {
                 $url .= '?reveal=true';
             }
 
-            $response = Http::timeout(30)->withToken($this->apiKey)->get($url);
+            $response = Http::timeout(30)
+                ->withToken($this->apiKey)
+                ->withHeaders(['x-sudo-vault-id' => $this->vaultId])
+                ->get($url);
+            $body = $response->json();
+
+            if ($reveal) {
+                Log::info('Sudo Card Reveal Response', ['cardID' => $cardId, 'body' => $body]);
+            }
 
             if ($response->successful()) {
-                $body = $response->json();
                 return ['success' => true, 'data' => $body['data'] ?? $body];
             }
 
@@ -334,7 +349,7 @@ class SudoService
         try {
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->get("{$this->apiUrl}/cards/customer/{$customerId}", [
-                    'page'  => $page,
+                    'page' => $page,
                     'limit' => $limit,
                 ]);
 
@@ -374,10 +389,10 @@ class SudoService
         try {
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->post("{$this->apiUrl}/cards/{$cardId}/fund", [
-                    'amount'          => $amount,
-                    'debitAccountId'  => $this->debitAccountId,
+                    'amount' => $amount,
+                    'debitAccountId' => $this->debitAccountId,
                     'fundingSourceId' => $this->fundingSourceId,
-                    'paymentReference'=> 'DCFD_' . strtoupper(substr(md5(uniqid()), 0, 12)),
+                    'paymentReference' => 'DCFD_' . strtoupper(substr(md5(uniqid()), 0, 12)),
                 ]);
 
             if ($response->successful()) {
@@ -404,14 +419,14 @@ class SudoService
             // Withdrawal = internal transfer via accounts/transfer endpoint.
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->post("{$this->apiUrl}/accounts/transfer", [
-                    'amount'                  => $amount,
-                    'currency'                => 'USD',
-                    'debitAccountId'          => $this->debitAccountId,
-                    'creditAccountId'         => $this->debitAccountId,
-                    'beneficiaryBankCode'     => 'SudoHUSVC',
-                    'beneficiaryAccountNumber'=> $this->accountReference,
-                    'narration'               => 'Card withdrawal',
-                    'paymentReference'        => 'DCWD_' . strtoupper(substr(md5(uniqid()), 0, 12)),
+                    'amount' => $amount,
+                    'currency' => 'USD',
+                    'debitAccountId' => $this->debitAccountId,
+                    'creditAccountId' => $this->debitAccountId,
+                    'beneficiaryBankCode' => 'SudoHUSVC',
+                    'beneficiaryAccountNumber' => $this->accountReference,
+                    'narration' => 'Card withdrawal',
+                    'paymentReference' => 'DCWD_' . strtoupper(substr(md5(uniqid()), 0, 12)),
                 ]);
 
             if ($response->successful()) {
@@ -510,15 +525,15 @@ class SudoService
     {
         try {
             $payload = [
-                'name'            => $data['name'],
-                'description'     => $data['description'] ?? '',
-                'status'          => $data['status'] ?? 'active',
-                'debitAccountId'  => $data['debit_account_id'] ?? $this->debitAccountId,
+                'name' => $data['name'],
+                'description' => $data['description'] ?? '',
+                'status' => $data['status'] ?? 'active',
+                'debitAccountId' => $data['debit_account_id'] ?? $this->debitAccountId,
                 'fundingSourceId' => $data['funding_source_id'] ?? $this->fundingSourceId,
-                'issuerCountry'   => $data['issuer_country'] ?? 'NGA',
-                'currency'        => $data['currency'] ?? 'USD',
-                'cardBrand'       => $data['card_brand'] ?? 'Visa',
-                'cardType'        => $data['card_type'] ?? 'virtual',
+                'issuerCountry' => $data['issuer_country'] ?? 'NGA',
+                'currency' => $data['currency'] ?? 'USD',
+                'cardBrand' => $data['card_brand'] ?? 'Visa',
+                'cardType' => $data['card_type'] ?? 'virtual',
             ];
 
             if (!empty($data['spending_controls'])) {
@@ -531,8 +546,8 @@ class SudoService
             if ($response->successful()) {
                 $body = $response->json();
                 return [
-                    'success'    => true,
-                    'data'       => $body['data'] ?? $body,
+                    'success' => true,
+                    'data' => $body['data'] ?? $body,
                     'program_id' => $body['data']['_id'] ?? null,
                 ];
             }
@@ -550,14 +565,14 @@ class SudoService
         try {
             $query = array_filter([
                 'searchTerm' => $filters['search_term'] ?? null,
-                'cardType'   => $filters['card_type'] ?? null,
-                'cardBrand'  => $filters['card_brand'] ?? null,
-                'currency'   => $filters['currency'] ?? null,
-                'status'     => $filters['status'] ?? null,
-                'fromDate'   => $filters['from_date'] ?? null,
-                'toDate'     => $filters['to_date'] ?? null,
-                'limit'      => $filters['limit'] ?? null,
-                'page'       => $filters['page'] ?? null,
+                'cardType' => $filters['card_type'] ?? null,
+                'cardBrand' => $filters['card_brand'] ?? null,
+                'currency' => $filters['currency'] ?? null,
+                'status' => $filters['status'] ?? null,
+                'fromDate' => $filters['from_date'] ?? null,
+                'toDate' => $filters['to_date'] ?? null,
+                'limit' => $filters['limit'] ?? null,
+                'page' => $filters['page'] ?? null,
             ]);
 
             $response = Http::timeout(30)->withToken($this->apiKey)
@@ -612,15 +627,15 @@ class SudoService
     {
         try {
             $payload = array_filter([
-                'name'            => $data['name'] ?? null,
-                'description'     => $data['description'] ?? null,
-                'status'          => $data['status'] ?? null,
-                'debitAccountId'  => $data['debit_account_id'] ?? null,
+                'name' => $data['name'] ?? null,
+                'description' => $data['description'] ?? null,
+                'status' => $data['status'] ?? null,
+                'debitAccountId' => $data['debit_account_id'] ?? null,
                 'fundingSourceId' => $data['funding_source_id'] ?? null,
-                'issuerCountry'   => $data['issuer_country'] ?? null,
-                'currency'        => $data['currency'] ?? null,
-                'cardBrand'       => $data['card_brand'] ?? null,
-                'cardType'        => $data['card_type'] ?? null,
+                'issuerCountry' => $data['issuer_country'] ?? null,
+                'currency' => $data['currency'] ?? null,
+                'cardBrand' => $data['card_brand'] ?? null,
+                'cardType' => $data['card_type'] ?? null,
             ], fn($v) => $v !== null);
 
             $response = Http::timeout(30)->withToken($this->apiKey)
@@ -812,6 +827,30 @@ class SudoService
         }
     }
 
+    // ─── ACCOUNTS: TRANSFER RATES ────────────────────────────────
+
+    public function getTransferRate(string $currencyPair = 'USDNGN'): array
+    {
+        try {
+            $response = Http::timeout(30)->withToken($this->apiKey)
+                ->get("{$this->apiUrl}/accounts/transfer/rate/{$currencyPair}");
+
+            if ($response->successful()) {
+                $body = $response->json();
+                return [
+                    'success' => true,
+                    'data' => $body['data'] ?? $body,
+                ];
+            }
+
+            Log::error('Sudo getTransferRate failed', ['status' => $response->status(), 'body' => $response->body()]);
+            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to fetch transfer rate'];
+        } catch (\Exception $e) {
+            Log::error('Sudo getTransferRate exception: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     // ─── DISPUTES ────────────────────────────────────────────────
 
     public function createDispute(string $transactionId, string $reason, string $explanation, string $metadata = '{}'): array
@@ -820,9 +859,9 @@ class SudoService
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->post("{$this->apiUrl}/cards/disputes", [
                     'transactionId' => $transactionId,
-                    'reason'        => $reason,
-                    'explanation'   => $explanation,
-                    'metadata'      => $metadata,
+                    'reason' => $reason,
+                    'explanation' => $explanation,
+                    'metadata' => $metadata,
                 ]);
 
             if ($response->successful()) {
@@ -876,9 +915,9 @@ class SudoService
         try {
             $response = Http::timeout(30)->withToken($this->apiKey)
                 ->put("{$this->apiUrl}/cards/disputes/{$disputeId}", [
-                    'reason'      => $reason,
+                    'reason' => $reason,
                     'explanation' => $explanation,
-                    'metadata'    => $metadata,
+                    'metadata' => $metadata,
                 ]);
 
             if ($response->successful()) {

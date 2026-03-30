@@ -23,16 +23,36 @@ class DollarCardController extends Controller
         return DB::table('card_settings')->where('id', 1)->first();
     }
 
+    private function getActiveRate($settings, $type = 'buy')
+    {
+        $rateSource = $settings->sudo_rate_source ?? 'manual';
+        if ($rateSource === 'auto') {
+            if ($type === 'buy' && !empty($settings->sudo_auto_buy_rate)) {
+                return (float) $settings->sudo_auto_buy_rate;
+            }
+            if ($type === 'sell' && !empty($settings->sudo_auto_sell_rate)) {
+                return (float) $settings->sudo_auto_sell_rate;
+            }
+        }
+        if ($type === 'sell' && !empty($settings->sudo_manual_sell_rate)) {
+            return (float) $settings->sudo_manual_sell_rate;
+        }
+
+        return (float) ($settings->sudo_dollar_rate ?? 1500);
+    }
+
     // ─── USER: CREATE CARD ───────────────────────────────────────
 
     public function createCard(Request $request)
     {
         set_time_limit(120);
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $user = DB::table('user')->where('id', $userId)->first();
-        if (!$user) return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
+        if (!$user)
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
 
         // Check lock
         $settings = $this->getCardSettings();
@@ -52,10 +72,11 @@ class DollarCardController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'pin'    => 'required|numeric|digits:4',
+            'pin' => 'required|numeric|digits:4',
             'amount' => 'required|numeric|min:3',
         ]);
-        if ($validator->fails()) return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        if ($validator->fails())
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
 
         if ($request->pin != $user->pin) {
             return response()->json(['status' => 'error', 'message' => 'Invalid Transaction PIN'], 403);
@@ -63,7 +84,8 @@ class DollarCardController extends Controller
 
         // User-chosen initial funding amount (min $3 required by Sudo)
         $creationFeeUsd = (float) $request->amount;
-        $dollarRate = $settings->sudo_dollar_rate ?? 1500;
+
+        $dollarRate = $this->getActiveRate($settings, 'buy');
         $fundingFeePercent = $settings->sudo_funding_fee_percent ?? 1.5;
 
         // Total NGN = initial USD load + service fee
@@ -84,18 +106,18 @@ class DollarCardController extends Controller
                 $lastName = $nameParts[1] ?? $nameParts[0];
 
                 $customerResult = $this->sudo->createCustomer([
-                    'name'       => $user->name,
+                    'name' => $user->name,
                     'first_name' => $firstName,
-                    'last_name'  => $lastName,
-                    'email'      => $user->email,
-                    'phone'      => $user->phone,
-                    'address'    => $user->address ?? '1 Lagos Street',
-                    'city'       => $user->city ?? 'Lagos',
-                    'state'      => $user->state ?? 'Lagos',
-                    'postal_code'=> $user->postal_code ?? '100001',
-                    'dob'        => $user->dob ?? null,
-                    'bvn'        => $user->bvn ?? null,
-                    'nin'        => $user->nin ?? null,
+                    'last_name' => $lastName,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'address' => $user->address ?? '1 Lagos Street',
+                    'city' => $user->city ?? 'Lagos',
+                    'state' => $user->state ?? 'Lagos',
+                    'postal_code' => $user->postal_code ?? '100001',
+                    'dob' => $user->dob ?? null,
+                    'bvn' => $user->bvn ?? null,
+                    'nin' => $user->nin ?? null,
                 ]);
 
                 if (!$customerResult['success']) {
@@ -109,16 +131,16 @@ class DollarCardController extends Controller
             // Step 2: Sync latest user data to Sudo customer (phone, email, BVN/NIN)
             // This ensures Sudo has all required identity info before card creation
             $updateResult = $this->sudo->updateCustomer($sudoCustomerId, [
-                'name'        => $user->name,
-                'phone'       => $user->phone,
-                'email'       => $user->email,
-                'dob'         => $user->dob ?? null,
-                'address'     => $user->address ?? '1 Lagos Street',
-                'city'        => $user->city ?? 'Lagos',
-                'state'       => $user->state ?? 'Lagos',
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'email' => $user->email,
+                'dob' => $user->dob ?? null,
+                'address' => $user->address ?? '1 Lagos Street',
+                'city' => $user->city ?? 'Lagos',
+                'state' => $user->state ?? 'Lagos',
                 'postal_code' => $user->postal_code ?? '100001',
-                'bvn'         => $user->bvn ?? null,
-                'nin'         => $user->nin ?? null,
+                'bvn' => $user->bvn ?? null,
+                'nin' => $user->nin ?? null,
             ]);
             if (!$updateResult['success']) {
                 return response()->json(['status' => 'error', 'message' => 'Failed to sync profile with card provider: ' . ($updateResult['message'] ?? 'Unknown error')], 400);
@@ -137,48 +159,48 @@ class DollarCardController extends Controller
             // Sudo sandbox returns balance: 0 on creation — always use our funded amount
             $initialBalance = $creationFeeUsd;
             DB::table('virtual_cards')->insert([
-                'user_id'           => $user->id,
-                'provider'          => 'sudo',
-                'card_id'           => $cardResult['card_id'],
-                'sudo_card_id'      => $cardResult['card_id'],
-                'sudo_customer_id'  => $sudoCustomerId,
-                'card_type'         => 'USD',
-                'status'            => 'active',
-                'masked_pan'        => $cardResult['masked_pan'],
-                'brand'             => $cardResult['brand'],
-                'expiry_month'      => $cardResult['expiry_month'],
-                'expiry_year'       => $cardResult['expiry_year'],
-                'last4'             => $cardResult['last4'],
-                'card_balance'      => $initialBalance,
-                'full_response_json'=> json_encode($cardResult['data']),
-                'created_at'        => now(),
-                'updated_at'        => now(),
+                'user_id' => $user->id,
+                'provider' => 'sudo',
+                'card_id' => $cardResult['card_id'],
+                'sudo_card_id' => $cardResult['card_id'],
+                'sudo_customer_id' => $sudoCustomerId,
+                'card_type' => 'USD',
+                'status' => 'active',
+                'masked_pan' => $cardResult['masked_pan'],
+                'brand' => $cardResult['brand'],
+                'expiry_month' => $cardResult['expiry_month'],
+                'expiry_year' => $cardResult['expiry_year'],
+                'last4' => $cardResult['last4'],
+                'card_balance' => $initialBalance,
+                'full_response_json' => json_encode($cardResult['data']),
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             // Step 6: Log transaction
             DB::table('message')->insert([
-                'username'      => $user->username,
-                'amount'        => $creationFeeNgn,
-                'message'       => "Created USD Virtual Dollar Card | Initial load: \${$creationFeeUsd} | Fee: ₦" . number_format($feeNgn, 2),
-                'oldbal'        => $user->bal,
-                'newbal'        => $user->bal - $creationFeeNgn,
+                'username' => $user->username,
+                'amount' => $creationFeeNgn,
+                'message' => "Created USD Virtual Dollar Card | Initial load: \${$creationFeeUsd} | Fee: ₦" . number_format($feeNgn, 2),
+                'oldbal' => $user->bal,
+                'newbal' => $user->bal - $creationFeeNgn,
                 'habukhan_date' => $this->system_date(),
-                'plan_status'   => 1,
-                'transid'       => $this->purchase_ref('DC_CREATE_'),
-                'role'          => 'dollar_card',
+                'plan_status' => 1,
+                'transid' => $this->purchase_ref('DC_CREATE_'),
+                'role' => 'dollar_card',
             ]);
 
             return response()->json([
-                'status'  => 'success',
+                'status' => 'success',
                 'message' => 'Dollar Card created successfully',
-                'data'    => [
-                    'card_id'      => $cardResult['card_id'],
-                    'masked_pan'   => $cardResult['masked_pan'],
-                    'brand'        => $cardResult['brand'],
+                'data' => [
+                    'card_id' => $cardResult['card_id'],
+                    'masked_pan' => $cardResult['masked_pan'],
+                    'brand' => $cardResult['brand'],
                     'expiry_month' => $cardResult['expiry_month'],
-                    'expiry_year'  => $cardResult['expiry_year'],
-                    'last4'        => $cardResult['last4'],
-                    'balance'      => $initialBalance,
+                    'expiry_year' => $cardResult['expiry_year'],
+                    'last4' => $cardResult['last4'],
+                    'balance' => $initialBalance,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -192,7 +214,8 @@ class DollarCardController extends Controller
     public function getCard(Request $request)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $user = DB::table('user')->where('id', $userId)->first();
         $settings = $this->getCardSettings();
@@ -211,10 +234,10 @@ class DollarCardController extends Controller
                 'has_customer_id' => !empty($user->sudo_customer_id),
                 'kyc_verified' => ($user->kyc ?? '0') == '1',
                 'settings' => [
-                    'dollar_rate'            => (float) ($settings->sudo_dollar_rate ?? 1500),
-                    'funding_fee_percent'    => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
+                    'dollar_rate' => (float) $this->getActiveRate($settings, 'buy'),
+                    'funding_fee_percent' => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
                     'withdrawal_fee_percent' => (float) ($settings->sudo_withdrawal_fee_percent ?? 1.5),
-                    'creation_fee_usd'       => max((float)($settings->sudo_creation_fee ?? 5.00), 3.0),
+                    'creation_fee_usd' => max((float) ($settings->sudo_creation_fee ?? 5.00), 3.0),
                 ],
             ]);
         }
@@ -225,22 +248,22 @@ class DollarCardController extends Controller
             'has_customer_id' => true,
             'kyc_verified' => ($user->kyc ?? '0') == '1',
             'data' => [
-                'id'           => $card->id,
-                'card_id'      => $card->sudo_card_id ?? $card->card_id,
-                'masked_pan'   => $card->masked_pan,
-                'brand'        => $card->brand,
+                'id' => $card->id,
+                'card_id' => $card->sudo_card_id ?? $card->card_id,
+                'masked_pan' => $card->masked_pan,
+                'brand' => $card->brand,
                 'expiry_month' => $card->expiry_month,
-                'expiry_year'  => $card->expiry_year,
-                'last4'        => $card->last4,
-                'balance'      => (float) $card->card_balance,
-                'status'       => $card->status,
-                'created_at'   => $card->created_at,
+                'expiry_year' => $card->expiry_year,
+                'last4' => $card->last4,
+                'balance' => (float) $card->card_balance,
+                'status' => $card->status,
+                'created_at' => $card->created_at,
             ],
             'settings' => [
-                'dollar_rate'            => (float) ($settings->sudo_dollar_rate ?? 1500),
-                'funding_fee_percent'    => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
+                'dollar_rate' => (float) $this->getActiveRate($settings, 'buy'),
+                'funding_fee_percent' => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
                 'withdrawal_fee_percent' => (float) ($settings->sudo_withdrawal_fee_percent ?? 1.5),
-                'creation_fee_usd'       => max((float)($settings->sudo_creation_fee ?? 5.00), 3.0),
+                'creation_fee_usd' => max((float) ($settings->sudo_creation_fee ?? 5.00), 3.0),
             ],
         ]);
     }
@@ -250,7 +273,8 @@ class DollarCardController extends Controller
     public function getCardDetails(Request $request, $id)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $card = DB::table('virtual_cards')
             ->where('user_id', $userId)
@@ -258,7 +282,8 @@ class DollarCardController extends Controller
             ->where('provider', 'sudo')
             ->first();
 
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         $result = $this->sudo->getCardDetails($card->sudo_card_id ?? $card->card_id, true);
         if (!$result['success']) {
@@ -266,15 +291,17 @@ class DollarCardController extends Controller
         }
 
         $cardData = $result['data'];
+        Log::info('DollarCard Reveal Mapping', ['cardData' => $cardData]);
+
         return response()->json([
             'status' => 'success',
             'data' => [
-                'card_number' => $cardData['number'] ?? $cardData['maskedPan'] ?? $card->masked_pan,
-                'cvv' => $cardData['cvv2'] ?? '***',
-                'expiry_month' => $cardData['expiryMonth'] ?? $card->expiry_month,
-                'expiry_year' => $cardData['expiryYear'] ?? $card->expiry_year,
+                'card_number' => $cardData['number'] ?? $cardData['pan'] ?? $cardData['cardNumber'] ?? $cardData['maskedPan'] ?? $card->masked_pan,
+                'cvv' => $cardData['cvv'] ?? $cardData['cvv2'] ?? $cardData['securityCode'] ?? '***',
+                'expiry_month' => $cardData['expiryMonth'] ?? $cardData['expiry_month'] ?? $card->expiry_month,
+                'expiry_year' => $cardData['expiryYear'] ?? $cardData['expiry_year'] ?? $card->expiry_year,
                 'brand' => $cardData['brand'] ?? $card->brand,
-                'name' => $cardData['customer']['name'] ?? null,
+                'name' => $cardData['customer']['name'] ?? $cardData['name'] ?? null,
                 'balance' => (float) $card->card_balance,
                 'status' => $card->status,
             ],
@@ -287,10 +314,12 @@ class DollarCardController extends Controller
     {
         set_time_limit(120);
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $user = DB::table('user')->where('id', $userId)->first();
-        if (!$user) return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
+        if (!$user)
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
 
         $settings = $this->getCardSettings();
         if (($settings->sudo_card_lock ?? 0) == 1) {
@@ -301,7 +330,8 @@ class DollarCardController extends Controller
             'amount' => 'required|numeric|min:1', // USD amount
             'pin' => 'required|numeric|digits:4',
         ]);
-        if ($validator->fails()) return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        if ($validator->fails())
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
 
         if ($request->pin != $user->pin) {
             return response()->json(['status' => 'error', 'message' => 'Invalid Transaction PIN'], 403);
@@ -313,10 +343,12 @@ class DollarCardController extends Controller
             ->where('status', 'active')
             ->first();
 
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'No active dollar card found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'No active dollar card found'], 404);
 
         $amountUsd = (float) $request->amount;
-        $dollarRate = $settings->sudo_dollar_rate ?? 1500;
+
+        $dollarRate = $this->getActiveRate($settings, 'buy');
         $fundingFeePercent = $settings->sudo_funding_fee_percent ?? 1.5;
 
         $baseCostNgn = $amountUsd * $dollarRate;
@@ -377,16 +409,19 @@ class DollarCardController extends Controller
     {
         set_time_limit(120);
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $user = DB::table('user')->where('id', $userId)->first();
-        if (!$user) return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
+        if (!$user)
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 401);
 
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|min:1',
             'pin' => 'required|numeric|digits:4',
         ]);
-        if ($validator->fails()) return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        if ($validator->fails())
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
 
         if ($request->pin != $user->pin) {
             return response()->json(['status' => 'error', 'message' => 'Invalid Transaction PIN'], 403);
@@ -398,7 +433,8 @@ class DollarCardController extends Controller
             ->where('status', 'active')
             ->first();
 
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'No active dollar card found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'No active dollar card found'], 404);
 
         $amountUsd = (float) $request->amount;
         if ($amountUsd > $card->card_balance) {
@@ -406,7 +442,8 @@ class DollarCardController extends Controller
         }
 
         $settings = $this->getCardSettings();
-        $dollarRate = $settings->sudo_dollar_rate ?? 1500;
+
+        $dollarRate = $this->getActiveRate($settings, 'sell');
         $withdrawFeePercent = $settings->sudo_withdrawal_fee_percent ?? 1.5;
 
         $baseCreditNgn = $amountUsd * $dollarRate;
@@ -458,12 +495,14 @@ class DollarCardController extends Controller
     public function changeCardStatus(Request $request)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $validator = Validator::make($request->all(), [
             'action' => 'required|in:freeze,unfreeze',
         ]);
-        if ($validator->fails()) return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        if ($validator->fails())
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
 
         $card = DB::table('virtual_cards')
             ->where('user_id', $userId)
@@ -471,7 +510,8 @@ class DollarCardController extends Controller
             ->whereNotIn('status', ['terminated', 'canceled'])
             ->first();
 
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         $action = $request->action;
         $result = $action === 'freeze'
@@ -480,9 +520,9 @@ class DollarCardController extends Controller
 
         // Log Sudo response for debugging
         Log::info('Sudo changeCardStatus response', [
-            'action'  => $action,
+            'action' => $action,
             'card_id' => $card->sudo_card_id ?? $card->card_id,
-            'result'  => $result,
+            'result' => $result,
         ]);
 
         // Update local DB regardless — Sudo sandbox may show active but we track locally
@@ -491,15 +531,15 @@ class DollarCardController extends Controller
 
         $user = DB::table('user')->where('id', $userId)->first();
         DB::table('message')->insert([
-            'username'      => $user->username,
-            'amount'        => 0,
-            'message'       => 'Dollar Card ' . ucfirst($action) . 'd',
-            'oldbal'        => $user->bal,
-            'newbal'        => $user->bal,
+            'username' => $user->username,
+            'amount' => 0,
+            'message' => 'Dollar Card ' . ucfirst($action) . 'd',
+            'oldbal' => $user->bal,
+            'newbal' => $user->bal,
             'habukhan_date' => $this->system_date(),
-            'plan_status'   => 1,
-            'transid'       => $this->purchase_ref('DC_STATUS_'),
-            'role'          => 'dollar_card',
+            'plan_status' => 1,
+            'transid' => $this->purchase_ref('DC_STATUS_'),
+            'role' => 'dollar_card',
         ]);
 
         return response()->json(['status' => 'success', 'message' => 'Card ' . $action . 'd successfully', 'new_status' => $newStatus]);
@@ -510,12 +550,14 @@ class DollarCardController extends Controller
     public function terminateCard(Request $request)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $validator = Validator::make($request->all(), [
             'pin' => 'required|numeric|digits:4',
         ]);
-        if ($validator->fails()) return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
+        if ($validator->fails())
+            return response()->json(['status' => 'error', 'message' => $validator->errors()->first()], 400);
 
         $user = DB::table('user')->where('id', $userId)->first();
         if ($request->pin != $user->pin) {
@@ -528,13 +570,14 @@ class DollarCardController extends Controller
             ->whereNotIn('status', ['terminated', 'canceled'])
             ->first();
 
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         // If card has balance, withdraw it first
         $refundNgn = 0;
         if ($card->card_balance > 0) {
             $settings = $this->getCardSettings();
-            $dollarRate = $settings->sudo_dollar_rate ?? 1500;
+            $dollarRate = $this->getActiveRate($settings, 'sell');
             $refundNgn = $card->card_balance * $dollarRate;
             DB::table('user')->where('id', $user->id)->increment('bal', $refundNgn);
         }
@@ -570,10 +613,12 @@ class DollarCardController extends Controller
     public function getTransactions(Request $request)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $user = DB::table('user')->where('id', $userId)->first();
-        if (!$user) return response()->json(['status' => 'success', 'data' => []]);
+        if (!$user)
+            return response()->json(['status' => 'success', 'data' => []]);
 
         $card = DB::table('virtual_cards')
             ->where('user_id', $userId)
@@ -589,39 +634,39 @@ class DollarCardController extends Controller
             ->get()
             ->map(function ($row) {
                 return [
-                    'source'      => 'local',
-                    'type'        => 'local',
+                    'source' => 'local',
+                    'type' => 'local',
                     'description' => $row->message,
-                    'amount'      => (float) $row->amount,
-                    'currency'    => 'NGN',
-                    'status'      => $row->plan_status == 1 ? 'completed' : ($row->plan_status == 2 ? 'failed' : 'pending'),
-                    'date'        => $row->habukhan_date,
-                    'transid'     => $row->transid,
+                    'amount' => (float) $row->amount,
+                    'currency' => 'NGN',
+                    'status' => $row->plan_status == 1 ? 'completed' : ($row->plan_status == 2 ? 'failed' : 'pending'),
+                    'date' => $row->habukhan_date,
+                    'transid' => $row->transid,
                 ];
             })->toArray();
 
         if (!$card) {
             return response()->json([
                 'status' => 'success',
-                'data'   => $localMessages,
+                'data' => $localMessages,
             ]);
         }
 
         // Get from Sudo API
-        $page   = $request->get('page', 0);
-        $limit  = $request->get('limit', 25);
+        $page = $request->get('page', 0);
+        $limit = $request->get('limit', 25);
         $result = $this->sudo->getCardTransactions($card->sudo_card_id ?? $card->card_id, $page, $limit);
 
         $sudoTxns = collect($result['data'] ?? [])->map(function ($tx) {
             return [
-                'source'      => 'sudo',
-                'type'        => $tx['type'] ?? 'transaction',
+                'source' => 'sudo',
+                'type' => $tx['type'] ?? 'transaction',
                 'description' => $tx['merchant']['name'] ?? ($tx['narration'] ?? 'Card Transaction'),
-                'amount'      => (float) abs($tx['amount'] ?? 0),
-                'currency'    => $tx['currency'] ?? 'USD',
-                'status'      => $tx['status'] ?? 'completed',
-                'date'        => $tx['createdAt'] ?? $tx['updatedAt'] ?? null,
-                'transid'     => $tx['_id'] ?? null,
+                'amount' => (float) abs($tx['amount'] ?? 0),
+                'currency' => $tx['currency'] ?? 'USD',
+                'status' => $tx['status'] ?? 'completed',
+                'date' => $tx['createdAt'] ?? $tx['updatedAt'] ?? null,
+                'transid' => $tx['_id'] ?? null,
             ];
         })->toArray();
 
@@ -629,29 +674,31 @@ class DollarCardController extends Controller
         $merged = array_merge($localMessages, $sudoTxns);
 
         return response()->json([
-            'status'     => 'success',
-            'data'       => $merged,
+            'status' => 'success',
+            'data' => $merged,
             'pagination' => $result['pagination'] ?? null,
         ]);
     }
 
-    // ─── USER: GET SETTINGS (dollar rate, fees) ──────────────────
-
     public function getSettings(Request $request)
     {
         $userId = $this->verifyapptoken($request->header('Authorization'));
-        if (!$userId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$userId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
         $settings = $this->getCardSettings();
 
         return response()->json([
             'status' => 'success',
             'data' => [
-                'dollar_rate'            => (float) ($settings->sudo_dollar_rate ?? 1500),
-                'creation_fee_usd'       => max((float)($settings->sudo_creation_fee ?? 5.00), 3.0),
-                'funding_fee_percent'    => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
+                'dollar_rate' => (float) $this->getActiveRate($settings, 'buy'),
+                'buy_rate' => (float) $this->getActiveRate($settings, 'buy'),
+                'sell_rate' => (float) $this->getActiveRate($settings, 'sell'),
+                'creation_fee_usd' => max((float) ($settings->sudo_creation_fee ?? 5.00), 3.0),
+                'funding_fee_percent' => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
                 'withdrawal_fee_percent' => (float) ($settings->sudo_withdrawal_fee_percent ?? 1.5),
-                'is_locked'              => (bool) ($settings->sudo_card_lock ?? 0),
+                'is_locked' => (bool) ($settings->sudo_card_lock ?? 0),
+                'rate_source' => $settings->sudo_rate_source ?? 'manual',
             ],
         ]);
     }
@@ -812,7 +859,7 @@ class DollarCardController extends Controller
 
                     // Log the fee in message table
                     $user = DB::table('user')->where('id', $userId)->first();
-                    $dollarRate = (float) ($settings->sudo_dollar_rate ?? 1500);
+                    $dollarRate = (float) $this->getActiveRate($settings, 'sell');
                     $feeNgn = $failedFee * $dollarRate;
 
                     DB::table('message')->insert([
@@ -849,7 +896,7 @@ class DollarCardController extends Controller
                         $refundNgn = 0;
                         $currentBalance = (float) DB::table('virtual_cards')->where('id', $localCard->id)->value('card_balance');
                         if ($currentBalance > 0) {
-                            $dollarRate = (float) ($settings->sudo_dollar_rate ?? 1500);
+                            $dollarRate = (float) $this->getActiveRate($settings, 'sell');
                             $refundNgn = $currentBalance * $dollarRate;
                             DB::table('user')->where('id', $userId)->increment('bal', $refundNgn);
                         }
@@ -904,22 +951,46 @@ class DollarCardController extends Controller
     public function adminGetSettings($token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
         $settings = $this->getCardSettings();
+
+        // Optionally fetch latest live rate if requested or if stale
+        $liveRate = null;
+        try {
+            $rateResult = $this->sudo->getTransferRate();
+            if ($rateResult['success']) {
+                $liveRate = $rateResult['data'];
+                // Update cached rate if it changed significantly or just update it
+                DB::table('card_settings')->where('id', 1)->update([
+                    'sudo_auto_buy_rate' => $liveRate['buy'] ?? $liveRate['rate'],
+                    'sudo_auto_sell_rate' => $liveRate['sell'] ?? $liveRate['rate'],
+                    'sudo_auto_rate_last_updated' => now(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Admin fetch live rate error: ' . $e->getMessage());
+        }
 
         return response()->json([
             'status' => 'success',
             'data' => [
                 'sudo_dollar_rate' => (float) ($settings->sudo_dollar_rate ?? 1500),
+                'sudo_manual_sell_rate' => (float) ($settings->sudo_manual_sell_rate ?? $settings->sudo_dollar_rate ?? 1500),
                 'sudo_creation_fee' => (float) ($settings->sudo_creation_fee ?? 2),
                 'sudo_funding_fee_percent' => (float) ($settings->sudo_funding_fee_percent ?? 1.5),
                 'sudo_withdrawal_fee_percent' => (float) ($settings->sudo_withdrawal_fee_percent ?? 1.5),
                 'sudo_card_lock' => (int) ($settings->sudo_card_lock ?? 0),
                 'sudo_failed_tx_fee' => (float) ($settings->sudo_failed_tx_fee ?? 0.40),
                 'sudo_max_daily_declines' => (int) ($settings->sudo_max_daily_declines ?? 3),
+                'sudo_rate_source' => $settings->sudo_rate_source ?? 'manual',
+                'sudo_auto_buy_rate' => (float) ($liveRate['buy'] ?? $settings->sudo_auto_buy_rate ?? 0),
+                'sudo_auto_sell_rate' => (float) ($liveRate['sell'] ?? $settings->sudo_auto_sell_rate ?? 0),
+                'sudo_auto_rate_last_updated' => $settings->sudo_auto_rate_last_updated,
             ],
         ]);
     }
@@ -929,18 +1000,31 @@ class DollarCardController extends Controller
     public function adminUpdateSettings(Request $request, $token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
         $update = [];
-        if ($request->has('sudo_dollar_rate')) $update['sudo_dollar_rate'] = $request->sudo_dollar_rate;
-        if ($request->has('sudo_creation_fee')) $update['sudo_creation_fee'] = $request->sudo_creation_fee;
-        if ($request->has('sudo_funding_fee_percent')) $update['sudo_funding_fee_percent'] = $request->sudo_funding_fee_percent;
-        if ($request->has('sudo_withdrawal_fee_percent')) $update['sudo_withdrawal_fee_percent'] = $request->sudo_withdrawal_fee_percent;
-        if ($request->has('sudo_card_lock')) $update['sudo_card_lock'] = $request->sudo_card_lock;
-        if ($request->has('sudo_failed_tx_fee')) $update['sudo_failed_tx_fee'] = $request->sudo_failed_tx_fee;
-        if ($request->has('sudo_max_daily_declines')) $update['sudo_max_daily_declines'] = $request->sudo_max_daily_declines;
+        if ($request->has('sudo_dollar_rate'))
+            $update['sudo_dollar_rate'] = $request->sudo_dollar_rate;
+        if ($request->has('sudo_manual_sell_rate'))
+            $update['sudo_manual_sell_rate'] = $request->sudo_manual_sell_rate;
+        if ($request->has('sudo_creation_fee'))
+            $update['sudo_creation_fee'] = $request->sudo_creation_fee;
+        if ($request->has('sudo_funding_fee_percent'))
+            $update['sudo_funding_fee_percent'] = $request->sudo_funding_fee_percent;
+        if ($request->has('sudo_withdrawal_fee_percent'))
+            $update['sudo_withdrawal_fee_percent'] = $request->sudo_withdrawal_fee_percent;
+        if ($request->has('sudo_card_lock'))
+            $update['sudo_card_lock'] = $request->sudo_card_lock;
+        if ($request->has('sudo_failed_tx_fee'))
+            $update['sudo_failed_tx_fee'] = $request->sudo_failed_tx_fee;
+        if ($request->has('sudo_max_daily_declines'))
+            $update['sudo_max_daily_declines'] = $request->sudo_max_daily_declines;
+        if ($request->has('sudo_rate_source'))
+            $update['sudo_rate_source'] = $request->sudo_rate_source;
 
         if (!empty($update)) {
             DB::table('card_settings')->where('id', 1)->update($update);
@@ -954,13 +1038,15 @@ class DollarCardController extends Controller
     public function adminGetAllCards(Request $request, $token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
-        $page        = (int) $request->get('page', 0);
+        $page = (int) $request->get('page', 0);
         $rowsPerPage = (int) $request->get('rowsPerPage', 10);
-        $search      = $request->get('search', '');
+        $search = $request->get('search', '');
 
         $query = DB::table('virtual_cards')
             ->where('virtual_cards.provider', 'sudo')
@@ -970,8 +1056,8 @@ class DollarCardController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('user.username', 'like', "%{$search}%")
-                  ->orWhere('virtual_cards.card_id', 'like', "%{$search}%")
-                  ->orWhere('virtual_cards.masked_pan', 'like', "%{$search}%");
+                    ->orWhere('virtual_cards.card_id', 'like', "%{$search}%")
+                    ->orWhere('virtual_cards.masked_pan', 'like', "%{$search}%");
             });
         }
 
@@ -989,12 +1075,15 @@ class DollarCardController extends Controller
     public function adminTerminateCard(Request $request, $cardId, $token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
         $card = DB::table('virtual_cards')->where('id', $cardId)->where('provider', 'sudo')->first();
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         $this->sudo->terminateCard($card->sudo_card_id ?? $card->card_id);
 
@@ -1002,7 +1091,7 @@ class DollarCardController extends Controller
         $refundNgn = 0;
         if ($card->card_balance > 0) {
             $settings = $this->getCardSettings();
-            $dollarRate = $settings->sudo_dollar_rate ?? 1500;
+            $dollarRate = $this->getActiveRate($settings, 'sell');
             $refundNgn = $card->card_balance * $dollarRate;
             DB::table('user')->where('id', $card->user_id)->increment('bal', $refundNgn);
         }
@@ -1021,12 +1110,15 @@ class DollarCardController extends Controller
     public function adminDeleteCard(Request $request, $cardId, $token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
         $card = DB::table('virtual_cards')->where('id', $cardId)->first();
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         if (!in_array($card->status, ['terminated', 'canceled'])) {
             return response()->json(['status' => 'error', 'message' => 'Only terminated cards can be deleted'], 400);
@@ -1041,12 +1133,15 @@ class DollarCardController extends Controller
     public function adminGetCardInfo(Request $request, $cardId, $token)
     {
         $adminId = $this->verifytoken($token);
-        if (!$adminId) return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        if (!$adminId)
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         $admin = DB::table('user')->where('id', $adminId)->first();
-        if (strtoupper($admin->type) !== 'ADMIN') return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        if (strtoupper($admin->type) !== 'ADMIN')
+            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
 
         $card = DB::table('virtual_cards')->where('id', $cardId)->first();
-        if (!$card) return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        if (!$card)
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
 
         $user = DB::table('user')->where('id', $card->user_id)->first();
         $sudoCard = $this->sudo->getCard($card->sudo_card_id ?? $card->card_id);
@@ -1054,8 +1149,8 @@ class DollarCardController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'card'             => $card,
-                'user'             => ['username' => $user->username, 'email' => $user->email, 'name' => $user->name, 'phone' => $user->phone],
+                'card' => $card,
+                'user' => ['username' => $user->username, 'email' => $user->email, 'name' => $user->name, 'phone' => $user->phone],
                 'provider_details' => $sudoCard['data'] ?? null,
             ],
         ]);

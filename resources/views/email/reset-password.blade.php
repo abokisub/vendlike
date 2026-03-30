@@ -25,9 +25,9 @@
                     </tr>
                     <tr>
                         <td style="text-align:center;">
-                            <a href="https://rakeshmandal.com" title="logo" target="_blank">
-                                <img width="60" src="https://i.ibb.co/hL4XZp2/android-chrome-192x192.png" title="logo"
-                                    alt="logo">
+                            <a href="{{ config('app.app_url') }}" title="logo" target="_blank">
+                                <img width="150" src="{{ config('app.app_url') . '/upload/welcome.png' }}" title="logo"
+                                    alt="{{ config('app.name') }}">
                             </a>
                         </td>
                     </tr>
@@ -46,7 +46,8 @@
                                         <h1
                                             style="color:#1e1e2d; font-weight:500; margin:0;font-size:32px;font-family:Rubik,sans-serif;">
                                             <span> {{ ucfirst($username) }} </span> You have
-                                            requested to reset your password</h1>
+                                            requested to reset your password
+                                        </h1>
                                         <span
                                             style="display:inline-block; vertical-align:middle; margin:29px 0 26px; border-bottom:1px solid #cecece; width:100px;"></span>
                                         <p style="color:#455056; font-size:15px;line-height:24px; margin:0;">
@@ -59,7 +60,8 @@
                                             style="background:#f8f9fa; border: 1px dashed #20e277; padding: 20px; margin-top: 30px; border-radius: 10px;">
                                             <h2
                                                 style="font-size: 36px; letter-spacing: 5px; color: #1e1e2d; margin: 0;">
-                                                {{ $otp }}</h2>
+                                                {{ $otp }}
+                                            </h2>
                                         </div>
 
                                         <p style="color:#455056; font-size:13px; margin-top: 20px;">
