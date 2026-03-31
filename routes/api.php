@@ -407,19 +407,19 @@ Route::get('website/app/cableplan', [PlanController::class, 'CableList']);
 Route::get('website/app/disco', [PlanController::class, 'DiscoList']);
 Route::get('website/app/exam', [PlanController::class, 'ExamList']);
 // api endpoint for users
-Route::post('data', [DataPurchase::class, 'BuyData']);
-Route::post('topup', [AirtimePurchase::class, 'BuyAirtime']);
+Route::match(['get', 'post'], 'data', [DataPurchase::class, 'BuyData']);
+Route::match(['get', 'post'], 'topup', [AirtimePurchase::class, 'BuyAirtime']);
 Route::get('cable/cable-validation', [IUCvad::class, 'IUC']);
-Route::post('cable', [CablePurchase::class, 'BuyCable']);
+Route::match(['get', 'post'], 'cable', [CablePurchase::class, 'BuyCable']);
 Route::get('bill/bill-validation', [MeterVerify::class, 'Check']);
-Route::post('bill', [BillPurchase::class, 'Buy']);
+Route::match(['get', 'post'], 'bill', [BillPurchase::class, 'Buy']);
 Route::post('cash', [AirtimeCash::class, 'Convert']);
-Route::post('bulksms', [BulksmsPurchase::class, 'Buy']);
+Route::match(['get', 'post'], 'bulksms', [BulksmsPurchase::class, 'Buy']);
 Route::post('transferwallet', [BonusTransfer::class, 'Convert']);
 Route::post('transfer', [TransferPurchase::class, 'TransferRequest']); // Web Transfer Route
 Route::post('paystack/transfer/{id}/secure', [TransferPurchase::class, 'TransferRequest']); // Mobile App Transfer Route
-Route::post('exam', [ExamPurchase::class, 'ExamPurchase']);
-Route::post('user', [AccessUser::class, 'Generate']);
+Route::match(['get', 'post'], 'exam', [ExamPurchase::class, 'ExamPurchase']);
+Route::match(['get', 'post'], 'user', [AccessUser::class, 'Generate']);
 Route::post('data_card', [DataCard::class, 'DataCardPurchase']);
 Route::post('recharge_card', [RechargeCard::class, 'RechargeCardPurchase']);
 Route::post('autopilot/a2c/otp', [AirtimeCash::class, 'A2C_SendOtp']);
@@ -554,7 +554,7 @@ Route::post('/user/kyc/update', [Auth::class, 'updateKyc']);
 Route::post('/user/pin/change', [Auth::class, 'ChangePin']);
 Route::get('/user/referral/data', [Auth::class, 'getReferralData']);
 Route::post('/user/referral/transfer', [Auth::class, 'transferReferralBonus']);
-Route::post('app/transaction', [Auth::class, 'Transaction']);
+Route::match(['get', 'post'], 'app/transaction', [Auth::class, 'Transaction']);
 Route::post('app/profile_image', [Auth::class, 'ProfileImage']);
 Route::post('app/notification', [Auth::class, 'Notification']);
 Route::post('app/complete_profile', [Auth::class, 'CompleteProfile']);
