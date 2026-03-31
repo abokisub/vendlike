@@ -46,8 +46,11 @@ class DataCard extends Controller
             } else {
                 $accessToken = 'null';
             }
-        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false && !$request->has('token')) {
             $system = config('app.name');
+            // Professional Refactor: Use client-provided request-id for idempotency if available
+            $transid = $request->input('request-id') ?? $this->purchase_ref('Data_card_');
+
             if ($this->core()->allow_pin == 1) {
                 // transaction pin required
                 $check = DB::table('user')->where(['id' => $this->verifytoken($request->token)]);
@@ -82,8 +85,11 @@ class DataCard extends Controller
             }
         } else {
             $system = "API";
-            $d_token = $request->header('Authorization');
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));
+            // Auto-generate request-id if not provided
+            $transid = $request->input('request-id') ?? $this->purchase_ref('Data_card_');
         }
 
         if (!empty($accessToken)) {

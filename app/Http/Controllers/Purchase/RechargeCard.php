@@ -82,8 +82,11 @@ class RechargeCard extends Controller
             }
         } else {
             $system = "API";
-            $d_token = $request->header('Authorization');
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));
+            // Auto-generate request-id if not provided
+            $transid = $request->input('request-id') ?? $this->purchase_ref('Recharge_card_');
         }
 
         if (!empty($accessToken)) {

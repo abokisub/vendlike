@@ -101,19 +101,27 @@ class AirtimePurchase extends Controller
             }
         } else {
             // api verification
+
+            // Flexible Parameter Mapping
+            if (!$request->has('plan_type') && $request->has('airtime_type')) {
+                $request->merge(['plan_type' => $request->airtime_type]);
+            }
+
             $validator = Validator::make($request->all(), [
                 'network' => 'required',
                 'phone' => 'required|numeric|digits:11',
                 'bypass' => 'required',
                 'plan_type' => 'required',
                 'amount' => 'required|numeric|integer|not_in:0|gt:0',
-                'request-id' => 'required|unique:airtime,transid'
             ]);
             $system = "API";
-            $id = "request-id";
-            $transid = $request->$id;
-            $d_token = $request->header('Authorization');
+
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));
+
+            // Auto-generate request-id if not provided by developer
+            $transid = $request->input('request-id') ?? $this->purchase_ref('AIRTIME_');
         }
 
         $receiptService = new ReceiptService();

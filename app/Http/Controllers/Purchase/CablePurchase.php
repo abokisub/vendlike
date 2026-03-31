@@ -96,14 +96,16 @@ class CablePurchase extends Controller
                 'cable' => 'required',
                 'iuc' => 'required',
                 'bypass' => 'required',
-                'cable_plan' => 'required',
-                'request-id' => 'required|unique:cable,transid'
+                'plan' => 'required'
             ]);
-            $authHeader = $request->header('Authorization');
-            if (strpos($authHeader, 'Token ') === 0) {
-                $authHeader = substr($authHeader, 6);
-            }
-            $accessToken = trim($authHeader);
+            $system = "API";
+
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
+            $accessToken = trim(str_replace("Token", "", $d_token));
+
+            // Auto-generate request-id if not provided
+            $transid = $request->input('request-id') ?? $this->purchase_ref('CABLE_');
         }
 
         $receiptService = new ReceiptService();

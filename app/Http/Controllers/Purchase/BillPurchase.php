@@ -98,14 +98,16 @@ class BillPurchase extends Controller
                 'meter_number' => 'required',
                 'bypass' => 'required',
                 'meter_type' => 'required',
-                'amount' => 'required|numeric|integer|not_in:0|gt:0',
-                'request-id' => 'required|unique:bill,transid'
+                'amount' => 'required|numeric'
             ]);
-            $authHeader = $request->header('Authorization');
-            if (strpos($authHeader, 'Token ') === 0) {
-                $authHeader = substr($authHeader, 6);
-            }
-            $accessToken = trim($authHeader);
+            $system = "API";
+
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
+            $accessToken = trim(str_replace("Token", "", $d_token));
+
+            // Auto-generate request-id if not provided
+            $transid = $request->input('request-id') ?? $this->purchase_ref('BILL_');
         }
 
         $receiptService = new ReceiptService();

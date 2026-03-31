@@ -32,7 +32,7 @@ class BonusTransfer extends Controller
             } else {
                 $accessToken = 'null';
             }
-        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false && !$request->has('token')) {
             if ($this->core()->allow_pin == 1) {
                 // transaction pin required
                 $check = DB::table('user')->where(['id' => $this->verifytoken($request->token)]);
@@ -66,11 +66,10 @@ class BonusTransfer extends Controller
                 }
             }
         } else {
-            return redirect(config('app.error_500'));
-            return response()->json([
-                'status' => 403,
-                'message' => 'Unable to Authenticate System'
-            ])->setStatusCode(403);
+            $system = "API";
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
+            $accessToken = trim(str_replace("Token", "", $d_token));
         }
 
         if ($accessToken) {

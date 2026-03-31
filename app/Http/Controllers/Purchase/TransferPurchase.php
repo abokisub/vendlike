@@ -67,7 +67,7 @@ class TransferPurchase extends Controller
 
             $system = "APP";
 
-        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false && !$request->has('token')) {
             // WEB AUTH
             $validator = Validator::make($request->all(), [
                 'amount' => 'required|numeric|gt:0',
@@ -114,16 +114,18 @@ class TransferPurchase extends Controller
                 'account_number' => 'required|numeric|digits:10',
                 'bank_code' => 'required',
                 'account_name' => 'required',
-                'request-id' => 'required|unique:transfers,reference'
             ]);
 
             if ($validator->fails()) {
                 return response()->json(['status' => 'fail', 'message' => $validator->errors()->first()])->setStatusCode(400);
             }
 
-            $transid = $request->input('request-id');
-            $d_token = $request->header('Authorization');
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));
+
+            // Auto-generate request-id if not provided
+            $transid = $request->input('request-id') ?? $this->purchase_ref('TF_');
 
             $check = DB::table('user')->where(function ($query) use ($accessToken) {
                 $query->where('apikey', $accessToken)

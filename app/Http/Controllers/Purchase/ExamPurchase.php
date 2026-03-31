@@ -79,7 +79,8 @@ class ExamPurchase extends Controller
             }
         } else {
             $system = "API";
-            $d_token = $request->header('Authorization');
+            // Flexible Auth Identification
+            $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));
         }
         if ($accessToken) {
