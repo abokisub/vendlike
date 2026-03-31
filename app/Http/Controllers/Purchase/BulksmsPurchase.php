@@ -21,7 +21,7 @@ class BulksmsPurchase extends Controller
             'message' => "required|min:1|max:$limit",
             'sender' => 'required|min:1|max:10',
         ]);
-        if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+        if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
             $system = config('app.name');
             if ($this->core()->allow_pin == 1) {
                 // transaction pin required

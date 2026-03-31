@@ -30,8 +30,7 @@ class BillPurchase extends Controller
             // Professional Refactor: Use client-provided request-id for idempotency if available
             if ($request->has('request-id')) {
                 $transid = $request->input('request-id');
-            }
-            else {
+            } else {
                 $transid = $this->purchase_ref('BILL_');
             }
 
@@ -41,19 +40,16 @@ class BillPurchase extends Controller
                 $d_token = $check->first();
                 if (trim($d_token->pin) == trim($request->pin)) {
                     $accessToken = $d_token->apikey;
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Transaction Pin'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 $accessToken = 'null';
             }
-        }
-        else if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
             $validator = Validator::make($request->all(), [
                 'disco' => 'required',
                 'meter_number' => 'required',
@@ -70,37 +66,32 @@ class BillPurchase extends Controller
                     $det = $check->first();
                     if (trim($det->pin) == trim($request->pin)) {
                         $accessToken = $det->apikey;
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 'fail',
                             'message' => 'Invalid Transaction Pin'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Transaction Pin'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 // transaction pin not required
                 $check = DB::table('user')->where(['id' => $this->verifytoken($request->token)]);
                 if ($check->count() == 1) {
                     $det = $check->first();
                     $accessToken = $det->apikey;
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'An Error Occur'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             // api verification
             $validator = Validator::make($request->all(), [
                 'disco' => 'required',
@@ -125,8 +116,7 @@ class BillPurchase extends Controller
                     'message' => $validator->errors()->first(),
                     'status' => 'fail'
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 $user_check = DB::table('user')->where(function ($query) use ($accessToken) {
                     $query->where('apikey', $accessToken)
                         ->orWhere('app_key', $accessToken)
@@ -152,8 +142,7 @@ class BillPurchase extends Controller
                                                         if ($request->amount >= $bill_d->bill_min) {
                                                             if ($bill_d->direct == 1) {
                                                                 $charges = $bill_d->bill;
-                                                            }
-                                                            else {
+                                                            } else {
                                                                 $charges = ($request->amount / 100) * $bill_d->bill;
                                                             }
                                                             $total_amount = $charges + $request->amount;
@@ -170,8 +159,7 @@ class BillPurchase extends Controller
                                                                 ];
                                                                 if (method_exists($adm, $check_now)) {
                                                                     $customer_name = $adm->$check_now($sending_data);
-                                                                }
-                                                                else {
+                                                                } else {
                                                                     \Log::error("BillPurchase Error: Method {$check_now} does not exist in MeterSend.");
                                                                     $customer_name = null;
                                                                 }
@@ -180,8 +168,7 @@ class BillPurchase extends Controller
                                                                         'status' => 'fail',
                                                                         'message' => 'Invalid Meter Number'
                                                                     ])->setStatusCode(403);
-                                                                }
-                                                                else {
+                                                                } else {
                                                                     if (DB::table('user')->where(['id' => $user->id])->update(['bal' => $debit])) {
                                                                         DB::commit();
                                                                         $trans_history = [
@@ -226,18 +213,17 @@ class BillPurchase extends Controller
                                                                                     // --- SMART BENEFICIARY SAVE ---
                                                                                     try {
                                                                                         Beneficiary::updateOrCreate(
-                                                                                        [
-                                                                                            'user_id' => $user->id,
-                                                                                            'service_type' => 'electricity',
-                                                                                            'identifier' => $request->meter_number
-                                                                                        ],
-                                                                                        [
-                                                                                            'network_or_provider' => $bill_plan->disco_name,
-                                                                                            'last_used_at' => Carbon::now(),
-                                                                                        ]
+                                                                                            [
+                                                                                                'user_id' => $user->id,
+                                                                                                'service_type' => 'electricity',
+                                                                                                'identifier' => $request->meter_number
+                                                                                            ],
+                                                                                            [
+                                                                                                'network_or_provider' => $bill_plan->disco_name,
+                                                                                                'last_used_at' => Carbon::now(),
+                                                                                            ]
                                                                                         );
-                                                                                    }
-                                                                                    catch (\Exception $e) {
+                                                                                    } catch (\Exception $e) {
                                                                                         Log::error('Electricity Beneficiary Save Failed: ' . $e->getMessage());
                                                                                     }
 
@@ -266,8 +252,7 @@ class BillPurchase extends Controller
                                                                                             $habukhan_forgot->token ?? null,
                                                                                             $transid
                                                                                         );
-                                                                                    }
-                                                                                    catch (\Exception $e) {
+                                                                                    } catch (\Exception $e) {
                                                                                         \Log::error("Bill Notification Error: " . $e->getMessage());
                                                                                     }
 
@@ -295,8 +280,7 @@ class BillPurchase extends Controller
                                                                                         'token' => $habukhan_forgot->token,
                                                                                         'wallet_vending' => 'wallet',
                                                                                     ]);
-                                                                                }
-                                                                                else if ($response == 'proccess') {
+                                                                                } else if ($response == 'proccess') {
                                                                                     return response()->json([
                                                                                         'disco_name' => strtoupper($bill_plan->disco_name),
                                                                                         'request-id' => $transid,
@@ -311,8 +295,7 @@ class BillPurchase extends Controller
                                                                                         'system' => $system,
                                                                                         'wallet_vending' => 'wallet',
                                                                                     ]);
-                                                                                }
-                                                                                else if ($response == 'fail') {
+                                                                                } else if ($response == 'fail') {
                                                                                     DB::table('user')->where(['username' => $user->username, 'id' => $user->id])->update(['bal' => $refund]);
 
                                                                                     $failMessage = "❌ Electricity Payment Failed\n\nYou attempted to pay ₦" . $request->amount . " for meter " . $request->meter_number . " (" . strtoupper($bill_plan->disco_name) . ") but the transaction failed. Your wallet has been refunded.";
@@ -333,8 +316,7 @@ class BillPurchase extends Controller
                                                                                         'system' => $system,
                                                                                         'wallet_vending' => 'wallet',
                                                                                     ]);
-                                                                                }
-                                                                                else {
+                                                                                } else {
                                                                                     return response()->json([
                                                                                         'disco_name' => strtoupper($bill_plan->disco_name),
                                                                                         'request-id' => $transid,
@@ -350,8 +332,7 @@ class BillPurchase extends Controller
                                                                                         'wallet_vending' => 'wallet',
                                                                                     ]);
                                                                                 }
-                                                                            }
-                                                                            else {
+                                                                            } else {
                                                                                 return response()->json([
                                                                                     'disco_name' => strtoupper($bill_plan->disco_name),
                                                                                     'request-id' => $transid,
@@ -367,8 +348,7 @@ class BillPurchase extends Controller
                                                                                     'wallet_vending' => 'wallet',
                                                                                 ]);
                                                                             }
-                                                                        }
-                                                                        else {
+                                                                        } else {
                                                                             DB::table('user')->where(['username' => $user->username, 'id' => $user->id])->update(['bal' => $refund]);
                                                                             DB::table('message')->where('transid', $transid)->delete();
                                                                             DB::table('bill')->where('transid', $transid)->delete();
@@ -377,101 +357,87 @@ class BillPurchase extends Controller
                                                                                 'message' => 'Unable to insert'
                                                                             ])->setStatusCode(403);
                                                                         }
-                                                                    }
-                                                                    else {
+                                                                    } else {
                                                                         return response()->json([
                                                                             'status' => 'fail',
                                                                             'message' => 'unable to debit user'
                                                                         ])->setStatusCode(403);
                                                                     }
                                                                 }
-                                                            }
-                                                            else {
+                                                            } else {
                                                                 return response()->json([
                                                                     'status' => 'fail',
                                                                     'message' => 'Insufficient Account Kindly Fund Your Wallet => ₦' . number_format($user->bal, 2)
                                                                 ])->setStatusCode(403);
                                                             }
-                                                        }
-                                                        else {
+                                                        } else {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'Minimum Electricity Purchase for this account is => ₦' . number_format($bill_d->bill_min, 2)
                                                             ])->setStatusCode(403);
                                                         }
-                                                    }
-                                                    else {
+                                                    } else {
                                                         return response()->json([
                                                             'status' => 'fail',
                                                             'message' => 'Maximum Electricity Purchase for this account is => ₦' . number_format($bill_d->bill_max, 2)
                                                         ])->setStatusCode(403);
                                                     }
-                                                }
-                                                else {
+                                                } else {
                                                     return response()->json([
                                                         'status' => 'fail',
                                                         'message' => 'Invalid Amount'
                                                     ])->setStatusCode(403);
                                                 }
-                                            }
-                                            else {
+                                            } else {
                                                 return response()->json([
                                                     'status' => 'fail',
                                                     'message' => 'Insufficient Account Kindly Fund Your Wallet => ₦' . number_format($user->bal, 2)
                                                 ])->setStatusCode(403);
                                             }
-                                        }
-                                        else {
+                                        } else {
                                             return response()->json([
                                                 'status' => 'fail',
                                                 'message' => 'Amount Not Detected'
                                             ])->setStatusCode(403);
                                         }
-                                    }
-                                    else {
+                                    } else {
                                         return response()->json([
                                             'status' => 'fail',
                                             'message' => 'You have Reach Daily Transaction Limit Kindly Message the Admin To Upgrade Your Account '
                                         ])->setStatusCode(403);
                                     }
-                                }
-                                else {
+                                } else {
                                     return response()->json([
                                         'status' => 'fail',
                                         'message' => 'Electricity Bill Not Available Right Now'
                                     ])->setStatusCode(403);
                                 }
-                            }
-                            else {
+                            } else {
                                 return response()->json([
                                     'status' => 'fail',
                                     'message' => 'Invalid Disco ID'
                                 ])->setStatusCode(403);
                             }
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'status' => 'fail',
                                 'message' => 'Referrence ID Used'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 'fail',
                             'message' => 'Number Block'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Access Token'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'status' => 'fail',
                 'message' => 'Authorization Header Token Required'

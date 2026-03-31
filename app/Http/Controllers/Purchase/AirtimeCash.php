@@ -41,7 +41,7 @@ class AirtimeCash extends Controller
             } else {
                 $accessToken = 'null';
             }
-        } else if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
             $system = config('app.name');
 
             if ($this->core()->allow_pin == 1) {

@@ -58,19 +58,16 @@ class TransferPurchase extends Controller
                 $user = $check->first();
                 if (trim($user->pin) == trim($request->pin)) {
                     $accessToken = $user->apikey;
-                }
-                else {
+                } else {
                     return response()->json(['status' => 'fail', 'message' => 'Invalid Transaction Pin'])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 return response()->json(['status' => 'fail', 'message' => 'User not found or blocked'])->setStatusCode(403);
             }
 
             $system = "APP";
 
-        }
-        else if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
             // WEB AUTH
             $validator = Validator::make($request->all(), [
                 'amount' => 'required|numeric|gt:0',
@@ -94,16 +91,13 @@ class TransferPurchase extends Controller
                     $user = $check->first();
                     if (trim($user->pin) == trim($request->pin)) {
                         $accessToken = $user->apikey;
-                    }
-                    else {
+                    } else {
                         return response()->json(['status' => 'fail', 'message' => 'Invalid Transaction Pin'])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json(['status' => 'fail', 'message' => 'User not found'])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 // Pin not required config
                 $check = DB::table('user')->where(['id' => $this->verifytoken($request->token)]);
                 if ($check->count() == 1) {
@@ -113,8 +107,7 @@ class TransferPurchase extends Controller
             }
             $system = config('app.name');
 
-        }
-        else {
+        } else {
             // API AUTH
             $validator = Validator::make($request->all(), [
                 'amount' => 'required|numeric|gt:0',
@@ -140,8 +133,7 @@ class TransferPurchase extends Controller
 
             if ($check->count() == 1) {
                 $user = $check->first();
-            }
-            else {
+            } else {
                 return response()->json(['status' => 'fail', 'message' => 'Invalid Authorization Token'])->setStatusCode(403);
             }
             $system = "API";
@@ -253,12 +245,12 @@ class TransferPurchase extends Controller
                         'date' => Carbon::now("Africa/Lagos")->format('Y-m-d H:i:s'), // Mobile app expects date field
                         'updated_at' => Carbon::now("Africa/Lagos")
                     ];
-                    
+
                     // Add bank_name if available
                     if (isset($routerResponse['bank_name'])) {
                         $updateData['bank_name'] = $routerResponse['bank_name'];
                     }
-                    
+
                     DB::table('transfers')->where('reference', $transid)->update($updateData);
 
                     DB::table('message')->where('transid', $transid)->update([
@@ -273,20 +265,19 @@ class TransferPurchase extends Controller
                     // Only save on success or pending (provider accepted it)
                     try {
                         Beneficiary::updateOrCreate(
-                        [
-                            'user_id' => $user->id,
-                            'service_type' => 'transfer_external',
-                            'identifier' => $request->account_number
-                        ],
-                        [
-                            'network_or_provider' => $routerResponse['bank_name'] ?? 'Bank',
-                            'name' => $request->account_name,
-                            'is_favorite' => filter_var($request->save_beneficiary, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                            'last_used_at' => Carbon::now(),
-                        ]
+                            [
+                                'user_id' => $user->id,
+                                'service_type' => 'transfer_external',
+                                'identifier' => $request->account_number
+                            ],
+                            [
+                                'network_or_provider' => $routerResponse['bank_name'] ?? 'Bank',
+                                'name' => $request->account_name,
+                                'is_favorite' => filter_var($request->save_beneficiary, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                                'last_used_at' => Carbon::now(),
+                            ]
                         );
-                    }
-                    catch (\Exception $e) {
+                    } catch (\Exception $e) {
                         // Don't fail the transaction if saving beneficiary fails
                         Log::error('Failed to save beneficiary: ' . $e->getMessage());
                     }
@@ -298,8 +289,7 @@ class TransferPurchase extends Controller
                             $amount,
                             'Transfer to ' . $request->account_name
                         );
-                    }
-                    catch (\Exception $e) {
+                    } catch (\Exception $e) {
                         Log::error("Debit Notification Failed: " . $e->getMessage());
                     }
 
@@ -315,13 +305,11 @@ class TransferPurchase extends Controller
                         'bank_name' => $transfer->bank_name ?? $routerResponse['bank_name'] ?? null,
                     ]);
 
-                }
-                else {
+                } else {
                     throw new \Exception($routerResponse['message'] ?? 'Provider Error');
                 }
 
-            }
-            catch (\Exception $e) {
+            } catch (\Exception $e) {
                 // 3. REFUND ON FAILURE
                 Log::error("TransferPurchase: API Call Failed, refunding user. Error: " . $e->getMessage());
 
@@ -349,8 +337,7 @@ class TransferPurchase extends Controller
                         $transactionResult['total_deduction'],
                         $transid
                     );
-                }
-                catch (\Exception $ex) {
+                } catch (\Exception $ex) {
                     Log::error("Refund Notification Failed: " . $ex->getMessage());
                 }
 
@@ -359,24 +346,19 @@ class TransferPurchase extends Controller
 
                 if (str_contains($msg, 'does not exist')) {
                     $userMsg = "Failed: The receiving bank rejected the transaction. Please check the details.";
-                }
-                elseif (str_contains($msg, 'Insufficient balance')) {
+                } elseif (str_contains($msg, 'Insufficient balance')) {
                     $userMsg = "Service temporarily unavailable. Please try again later or contact support.";
-                }
-                elseif (str_contains($msg, 'Insufficient Funds') || str_contains($msg, 'Low Liquidity')) {
+                } elseif (str_contains($msg, 'Insufficient Funds') || str_contains($msg, 'Low Liquidity')) {
                     $userMsg = "Service temporarily unavailable (Low Balance). Please try again later.";
-                }
-                elseif (str_contains($msg, 'Connection timed out') || str_contains($msg, 'resolve host')) {
+                } elseif (str_contains($msg, 'Connection timed out') || str_contains($msg, 'resolve host')) {
                     $userMsg = "Network Error. Please try again.";
-                }
-                elseif (str_contains($msg, '{')) {
+                } elseif (str_contains($msg, '{')) {
                     // Try to extract "message" field if it's a JSON string
                     $json = json_decode(substr($msg, strpos($msg, '{')), true);
                     if (isset($json['message'])) {
                         $userMsg = "Failed: " . $json['message'];
                     }
-                }
-                else {
+                } else {
                     $cleanMsg = strip_tags($msg);
                     if (strlen($cleanMsg) < 100)
                         $userMsg = "Failed: " . $cleanMsg;
@@ -388,8 +370,7 @@ class TransferPurchase extends Controller
                 ])->setStatusCode(400);
             }
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
             Log::error('TransferRequest Exception: ' . $e->getMessage());
             return response()->json(['status' => 'fail', 'message' => 'Internal Server Error'])->setStatusCode(500);
         }

@@ -30,8 +30,7 @@ class CablePurchase extends Controller
             // Professional Refactor: Use client-provided request-id for idempotency if available
             if ($request->has('request-id')) {
                 $transid = $request->input('request-id');
-            }
-            else {
+            } else {
                 $transid = $this->purchase_ref('CABLE_');
             }
 
@@ -41,19 +40,16 @@ class CablePurchase extends Controller
                 $d_token = $check->first();
                 if (trim($d_token->pin) == trim($request->pin)) {
                     $accessToken = $d_token->apikey;
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Transaction Pin'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 $accessToken = 'null';
             }
-        }
-        else if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+        } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) && strpos($request->header('Authorization'), 'Token') === false) {
             $validator = Validator::make($request->all(), [
                 'cable' => 'required',
                 'iuc' => 'required',
@@ -69,37 +65,32 @@ class CablePurchase extends Controller
                     $det = $check->first();
                     if (trim($det->pin) == trim($request->pin)) {
                         $accessToken = $det->apikey;
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 'fail',
                             'message' => 'Invalid Transaction Pin'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Transaction Pin'
                     ])->setStatusCode(403);
                 }
-            }
-            else {
+            } else {
                 // transaction pin not required
                 $check = DB::table('user')->where(['id' => $this->verifytoken($request->token)]);
                 if ($check->count() == 1) {
                     $det = $check->first();
                     $accessToken = $det->apikey;
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'An Error Occur'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             // api verification
             $validator = Validator::make($request->all(), [
                 'cable' => 'required',
@@ -128,8 +119,7 @@ class CablePurchase extends Controller
                     'status' => 'fail',
                     'reference' => $reference,
                 ])->setStatusCode(403);
-            }
-            else {
+            } else {
                 $user_check = DB::table('user')->where(function ($query) use ($accessToken) {
                     $query->where('apikey', $accessToken)
                         ->orWhere('app_key', $accessToken)
@@ -156,8 +146,7 @@ class CablePurchase extends Controller
                                                         $cable_setting = DB::table('cable_charge')->first();
                                                         if ($cable_setting->direct == 1) {
                                                             $charges = $cable_setting->$cable_name;
-                                                        }
-                                                        else {
+                                                        } else {
                                                             $charges = ($cable_plan->plan_price / 100) * $cable_setting->$cable_name;
                                                         }
                                                         $total_amount = $charges + $cable_plan->plan_price;
@@ -174,8 +163,7 @@ class CablePurchase extends Controller
                                                             ];
                                                             if (method_exists($adm, $check_now)) {
                                                                 $customer_name = $adm->$check_now($sending_data);
-                                                            }
-                                                            else {
+                                                            } else {
                                                                 \Log::error("CablePurchase IUC Error: Method {$check_now} does not exist in IUCsend.");
                                                                 $customer_name = null;
                                                             }
@@ -188,8 +176,7 @@ class CablePurchase extends Controller
                                                                     'status' => 'fail',
                                                                     'message' => $errorMessage
                                                                 ])->setStatusCode(403);
-                                                            }
-                                                            else {
+                                                            } else {
                                                                 // debit user
                                                                 $debit = $user->bal - $total_amount;
                                                                 $refund = $debit + $total_amount;
@@ -233,8 +220,7 @@ class CablePurchase extends Controller
                                                                         ];
                                                                         if (method_exists($sender, $check_now)) {
                                                                             $response = $sender->$check_now($user_info);
-                                                                        }
-                                                                        else {
+                                                                        } else {
                                                                             \Log::error("CablePurchase Error: Method {$check_now} does not exist in CableSend.");
                                                                             $response = 'fail';
                                                                         }
@@ -243,18 +229,17 @@ class CablePurchase extends Controller
                                                                                 // --- SMART BENEFICIARY SAVE ---
                                                                                 try {
                                                                                     Beneficiary::updateOrCreate(
-                                                                                    [
-                                                                                        'user_id' => $user->id,
-                                                                                        'service_type' => 'tv',
-                                                                                        'identifier' => $request->iuc
-                                                                                    ],
-                                                                                    [
-                                                                                        'network_or_provider' => $cable->cable_name,
-                                                                                        'last_used_at' => Carbon::now(),
-                                                                                    ]
+                                                                                        [
+                                                                                            'user_id' => $user->id,
+                                                                                            'service_type' => 'tv',
+                                                                                            'identifier' => $request->iuc
+                                                                                        ],
+                                                                                        [
+                                                                                            'network_or_provider' => $cable->cable_name,
+                                                                                            'last_used_at' => Carbon::now(),
+                                                                                        ]
                                                                                     );
-                                                                                }
-                                                                                catch (\Exception $e) {
+                                                                                } catch (\Exception $e) {
                                                                                     Log::error('Cable Beneficiary Save Failed: ' . $e->getMessage());
                                                                                 }
 
@@ -280,8 +265,7 @@ class CablePurchase extends Controller
                                                                                         $request->iuc,
                                                                                         $transid
                                                                                     );
-                                                                                }
-                                                                                catch (\Exception $e) {
+                                                                                } catch (\Exception $e) {
                                                                                     \Log::error("Cable Notification Error: " . $e->getMessage());
                                                                                 }
 
@@ -301,8 +285,7 @@ class CablePurchase extends Controller
                                                                                     'plan_name' => $cable_plan->plan_name,
                                                                                     'reference' => $reference,
                                                                                 ]);
-                                                                            }
-                                                                            else if ($response == 'process') {
+                                                                            } else if ($response == 'process') {
                                                                                 return response()->json([
                                                                                     'cabl_name' => strtoupper($cable_name),
                                                                                     'request-id' => $transid,
@@ -318,8 +301,7 @@ class CablePurchase extends Controller
                                                                                     'plan_name' => $cable_plan->plan_name,
                                                                                     'reference' => $reference,
                                                                                 ]);
-                                                                            }
-                                                                            else if ($response == 'fail') {
+                                                                            } else if ($response == 'fail') {
                                                                                 DB::table('user')->where(['username' => $user->username, 'id' => $user->id])->update(['bal' => $refund]);
 
                                                                                 $failMessage = "❌ TV Subscription Failed\n\nYou attempted to subscribe " . strtoupper($cable_name) . " " . $cable_plan->plan_name . " for " . $request->iuc . " but the transaction failed. Your wallet has been refunded.";
@@ -341,8 +323,7 @@ class CablePurchase extends Controller
                                                                                     'plan_name' => $cable_plan->plan_name,
                                                                                     'reference' => $reference,
                                                                                 ]);
-                                                                            }
-                                                                            else {
+                                                                            } else {
                                                                                 return response()->json([
                                                                                     'cabl_name' => strtoupper($cable_name),
                                                                                     'request-id' => $transid,
@@ -359,8 +340,7 @@ class CablePurchase extends Controller
                                                                                     'reference' => $reference,
                                                                                 ]);
                                                                             }
-                                                                        }
-                                                                        else {
+                                                                        } else {
                                                                             return response()->json([
                                                                                 'cabl_name' => strtoupper($cable_name),
                                                                                 'request-id' => $transid,
@@ -377,8 +357,7 @@ class CablePurchase extends Controller
                                                                                 'reference' => $reference,
                                                                             ]);
                                                                         }
-                                                                    }
-                                                                    else {
+                                                                    } else {
                                                                         DB::table('user')->where(['username' => $user->username, 'id' => $user->id])->update(['bal' => $refund]);
                                                                         DB::table('message')->where('transid', $transid)->delete();
                                                                         DB::table('cable')->where('transid', $transid)->delete();
@@ -387,94 +366,81 @@ class CablePurchase extends Controller
                                                                             'message' => 'Unable to insert'
                                                                         ])->setStatusCode(403);
                                                                     }
-                                                                }
-                                                                else {
+                                                                } else {
                                                                     return response()->json([
                                                                         'status' => 'fail',
                                                                         'message' => 'unable to debit user'
                                                                     ])->setStatusCode(403);
                                                                 }
                                                             }
-                                                        }
-                                                        else {
+                                                        } else {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'Insufficient Account Kindly Fund Your Wallet => ₦' . number_format($user->bal, 2)
                                                             ])->setStatusCode(403);
                                                         }
-                                                    }
-                                                    else {
+                                                    } else {
                                                         return response()->json([
                                                             'status' => 'fail',
                                                             'message' => 'Amount Not Detected'
                                                         ])->setStatusCode(403);
                                                     }
-                                                }
-                                                else {
+                                                } else {
                                                     return response()->json([
                                                         'status' => 'fail',
                                                         'message' => 'You have Reach Daily Transaction Limit Kindly Message the Admin To Upgrade Your Account '
                                                     ])->setStatusCode(403);
                                                 }
-                                            }
-                                            else {
+                                            } else {
                                                 return response()->json([
                                                     'status' => 'fail',
                                                     'message' => 'Insufficient Account Kindly Fund Your Wallet => ₦' . number_format($user->bal, 2)
                                                 ])->setStatusCode(403);
                                             }
-                                        }
-                                        else {
+                                        } else {
                                             return response()->json([
                                                 'status' => 'fail',
                                                 'message' => 'Invalid account number'
                                             ])->setStatusCode(403);
                                         }
-                                    }
-                                    else {
+                                    } else {
                                         return response()->json([
                                             'status' => 'fail',
                                             'message' => strtoupper($cable_name) . " is not available right now"
                                         ])->setStatusCode(403);
                                     }
-                                }
-                                else {
+                                } else {
                                     return response()->json([
                                         'status' => 'fail',
                                         'message' => 'invalid cable plan id'
                                     ])->setStatusCode(403);
                                 }
-                            }
-                            else {
+                            } else {
                                 return response()->json([
                                     'status' => 'fail',
                                     'message' => 'Referrence ID Used'
                                 ])->setStatusCode(403);
                             }
-                        }
-                        else {
+                        } else {
                             return response()->json([
                                 'status' => 'fail',
                                 'message' => 'Invalid Cable Plan ID'
                             ])->setStatusCode(403);
                         }
-                    }
-                    else {
+                    } else {
                         return response()->json([
                             'status' => 'fail',
                             'message' => 'Number Block'
                         ])->setStatusCode(403);
                     }
-                }
-                else {
+                } else {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Access Token'
                     ])->setStatusCode(403);
                 }
             }
-        }
-        else {
+        } else {
             return response()->json([
                 'status' => 'fail',
                 'message' => 'Authorization Header Token Required'
