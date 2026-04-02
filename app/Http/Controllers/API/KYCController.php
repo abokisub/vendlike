@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use App\Services\PointWaveService;
 use App\Services\Banking\Providers\XixapayProvider;
@@ -238,19 +239,30 @@ class KYCController extends Controller
                 // Note: column is 'status' not 'kyc_status', tier values are 'tier1'/'tier2' not 'tier_1'/'tier_2'
                 $tierMap = ['tier_1' => 'tier1', 'tier_2' => 'tier2'];
                 $dbTier = $tierMap[$tierData['tier']] ?? $tierData['tier'];
+                // Build insert data — only include columns that exist in the table
+                $kycInsertData = [
+                    'id_number_encrypted' => encrypt($request->id_number),
+                    'status' => 'verified',
+                    'tier' => $dbTier,
+                    'daily_limit' => $tierData['daily_limit'],
+                    'transaction_limit' => $tierData['single_limit'],
+                    $request->id_type => $request->id_number, // stores in 'bvn' or 'nin' column
+                    'verified_at' => now(),
+                    'updated_at' => now(),
+                ];
+                // Only add id_type if the column exists (some deployments may not have it)
+                if (Schema::hasColumn('pointwave_kyc', 'id_type')) {
+                    $kycInsertData['id_type'] = $request->id_type;
+                }
+                // Use 'kyc_status' or 'status' depending on which column exists
+                if (Schema::hasColumn('pointwave_kyc', 'kyc_status')) {
+                    $kycInsertData['kyc_status'] = 'verified';
+                    unset($kycInsertData['status']);
+                }
+
                 DB::table('pointwave_kyc')->updateOrInsert(
                     ['user_id' => $user->id],
-                    [
-                        'id_type' => $request->id_type,
-                        'id_number_encrypted' => encrypt($request->id_number),
-                        'status' => 'verified',
-                        'tier' => $dbTier,
-                        'daily_limit' => $tierData['daily_limit'],
-                        'transaction_limit' => $tierData['single_limit'],
-                        $request->id_type => $request->id_number,
-                        'verified_at' => now(),
-                        'updated_at' => now(),
-                    ]
+                    $kycInsertData
                 );
 
                 // Sync to user_kyc table for Admin Visibility
