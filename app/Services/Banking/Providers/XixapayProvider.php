@@ -22,14 +22,11 @@ class XixapayProvider implements BankingProviderInterface
     }
 
     /**
-     * Internal helper to get prefixed businessId if required by certain endpoints
+     * Internal helper — returns plain businessId (no prefix)
      */
     protected function getPrefixedBusinessId(): string
     {
-        if (strpos($this->businessId, 'xixapay_') === 0) {
-            return $this->businessId;
-        }
-        return 'xixapay_' . $this->businessId;
+        return $this->businessId;
     }
 
     /**
@@ -177,11 +174,6 @@ class XixapayProvider implements BankingProviderInterface
     public function queryTransfer(string $reference): array
     {
         // Xixapay status check
-        // Assuming endpoint: /api/v1/transfer/status or similar.
-        // Documentation not fully provided, so using best guess or standard pattern.
-        // User checklist says "Correct States: initiated -> processing -> pending ... " via webhook usually.
-        // But for query:
-
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
@@ -212,12 +204,6 @@ class XixapayProvider implements BankingProviderInterface
      */
     public function verifyIdentity(string $idType, string $idNumber): array
     {
-        \Log::info("XixapayProvider: POST to https://api.xixapay.com/api/identity/verify", [
-            'id_type' => $idType,
-            'id_number' => $idNumber,
-            'businessId' => $this->businessId
-        ]);
-
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
@@ -230,7 +216,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'data' => $data['data'] ?? [],
@@ -248,21 +234,15 @@ class XixapayProvider implements BankingProviderInterface
     /**
      * Create Customer (Phase 3)
      */
-    /**
-     * Create Customer (Phase 3)
-     */
     public function createCustomer(array $details): array
     {
         $request = $this->httpClient()->asMultipart()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
-            // Content-Type is set automatically by asMultipart
         ]);
 
-        // Attach Files
         if (isset($details['id_card']) && $details['id_card']) {
             $file = $details['id_card'];
-            // Check if it's an UploadedFile instance or path
             if ($file instanceof \Illuminate\Http\UploadedFile) {
                 $request->attach('id_card', fopen($file->getRealPath(), 'r'), $file->getClientOriginalName());
             }
@@ -292,11 +272,11 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'data' => $data['data'] ?? [],
-                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? $data['customer']['customer_id'] ?? null,
+                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? null,
                 'full_response' => $data
             ];
         }
@@ -318,7 +298,6 @@ class XixapayProvider implements BankingProviderInterface
             'api-key' => $this->apiKey,
         ]);
 
-        // Attach Files (Optional for Update, but if provided they are sent)
         if (isset($details['id_card']) && $details['id_card']) {
             $file = $details['id_card'];
             if ($file instanceof \Illuminate\Http\UploadedFile) {
@@ -350,11 +329,11 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'data' => $data['data'] ?? [],
-                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? $data['customer']['customer_id'] ?? null,
+                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? null,
                 'full_response' => $data
             ];
         }
@@ -365,28 +344,20 @@ class XixapayProvider implements BankingProviderInterface
             'full_response' => $data
         ];
     }
+
     /**
      * Create Virtual Card (Phase 4)
      */
     public function createVirtualCard(string $customerId, string $currency, float $amount): array
     {
-        // Map Currency to Country Code as per Xixapay Docs
         $country = ($currency === 'NGN') ? 'NG' : 'US';
-
-        \Log::info("XixapayProvider: Attempting to create virtual card", [
-            'customer_id' => $customerId,
-            'currency' => $currency,
-            'amount' => $amount,
-            'businessId' => $this->businessId,
-            'country' => $country
-        ]);
 
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
             'Content-Type' => 'application/json'
         ])->post('https://api.xixapay.com/api/card/create', [
-                    'businessId' => $this->getPrefixedBusinessId(), // Uses prefix
+                    'businessId' => $this->getPrefixedBusinessId(),
                     'customer_id' => $customerId,
                     'country' => $country,
                     'amount' => $amount
@@ -394,12 +365,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        \Log::info("XixapayProvider: Card creation response", [
-            'status' => $response->status(),
-            'body' => $data
-        ]);
-
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'data' => $data['data'] ?? [],
@@ -414,21 +380,12 @@ class XixapayProvider implements BankingProviderInterface
             'full_response' => $data
         ];
     }
+
     /**
      * Fund Virtual Card (Phase 5)
-     */
-    /**
-     * Fund Virtual Card (Phase 5)
-     * Endpoint: POST /api/card/{id}/fund
      */
     public function fundVirtualCard(string $cardId, float $amount): array
     {
-        \Log::info("XixapayProvider: Attempting to fund virtual card", [
-            'card_id' => $cardId,
-            'amount' => $amount,
-            'businessId' => $this->getPrefixedBusinessId()
-        ]);
-
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
@@ -440,7 +397,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'message' => $data['message'] ?? 'Card funded successfully',
@@ -459,18 +416,8 @@ class XixapayProvider implements BankingProviderInterface
     /**
      * Withdraw from Virtual Card (Phase 5)
      */
-    /**
-     * Withdraw from Virtual Card (Phase 5)
-     * Endpoint: POST /api/cards/{card_id}/withdraw
-     */
     public function withdrawVirtualCard(string $cardId, float $amount): array
     {
-        \Log::info("XixapayProvider: Attempting to withdraw from virtual card", [
-            'card_id' => $cardId,
-            'amount' => $amount,
-            'businessId' => $this->getPrefixedBusinessId()
-        ]);
-
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
             'api-key' => $this->apiKey,
@@ -482,7 +429,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'message' => $data['message'] ?? 'Withdrawal successful',
@@ -501,22 +448,13 @@ class XixapayProvider implements BankingProviderInterface
 
     /**
      * Change Card Status (Phase 5)
-     * Endpoint: PUT /api/card/{id}/status
-     * Status: 'active', 'frozen', 'blocked'
      */
     public function changeCardStatus(string $cardId, string $status): array
     {
-        // Enforce valid actions
         $validStatuses = ['active', 'frozen', 'blocked'];
         if (!in_array($status, $validStatuses)) {
             return ['status' => 'error', 'message' => "Invalid status. Allowed: " . implode(', ', $validStatuses)];
         }
-
-        \Log::info("XixapayProvider: Attempting to change card status", [
-            'card_id' => $cardId,
-            'status' => $status,
-            'businessId' => $this->getPrefixedBusinessId()
-        ]);
 
         $response = $this->httpClient()->withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey,
@@ -529,7 +467,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'message' => $data['message'] ?? "Card status updated to $status",
@@ -542,83 +480,9 @@ class XixapayProvider implements BankingProviderInterface
             'message' => $data['message'] ?? "Failed to update card status"
         ];
     }
-    /**
-     * Create Virtual Account (Bank Transfer)
-     * Supports multiple bank codes (e.g., PalmPay + Kolomoni)
-     */
-    public function createVirtualAccount(array $payload): array
-    {
-        // $payload should look like:
-        // [
-        //    'email' => ..., 'name' => ..., 'phoneNumber' => ..., 'bankCode' => ['20867', '20987'],
-        //    'accountType' => 'static', 'businessId' => ...
-        // ]
-        // OR
-        // [ 'customer_id' => ..., 'bankCode' => ..., 'accountType' => ... ]
 
-        $response = $this->httpClient()->withHeaders([
-            'Authorization' => 'Bearer ' . $this->secretKey,
-            'api-key' => $this->apiKey,
-            'Content-Type' => 'application/json'
-        ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $payload);
-
-        $data = $response->json();
-
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
-            return [
-                'status' => 'success',
-                'message' => $data['message'] ?? 'Virtual account created',
-                'customer' => $data['customer'] ?? [],
-                'bankAccounts' => $data['bankAccounts'] ?? [], // Array of accounts
-                'full_response' => $data
-            ];
-        }
-
-        return [
-            'status' => 'error',
-            'message' => $data['message'] ?? 'Virtual account creation failed'
-        ];
-    }
-    /**
-     * Update Virtual Account Status
-     * Endpoint: PATCH /api/v1/updateVirtualAccountStatus
-     */
-    public function updateVirtualAccountStatus(string $accountNumber, string $status, string $reason = null): array
-    {
-        $payload = [
-            'businessId' => $this->businessId,
-            'accountNumber' => $accountNumber,
-            'status' => $status
-        ];
-
-        if ($reason) {
-            $payload['reason'] = $reason;
-        }
-
-        $response = $this->httpClient()->withHeaders([
-            'Authorization' => 'Bearer ' . $this->secretKey,
-            'api-key' => $this->apiKey,
-            'Content-Type' => 'application/json'
-        ])->patch('https://api.xixapay.com/api/v1/updateVirtualAccountStatus', $payload);
-
-        $data = $response->json();
-
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
-            return [
-                'status' => 'success',
-                'message' => $data['message'] ?? 'Account status updated successfully',
-                'full_response' => $data
-            ];
-        }
-
-        return [
-            'status' => 'error',
-            'message' => $data['message'] ?? 'Failed to update account status'
-        ];
-    }
     /**
      * Get Card Details & Balance
-     * Endpoint: POST /api/card/{card_id}/balance
      */
     public function getCardDetails(string $cardId): array
     {
@@ -632,7 +496,7 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && ($data['status'] === 'success' || $data['status'] === true)) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
                 'message' => $data['message'] ?? 'Card details retrieved',
@@ -646,5 +510,91 @@ class XixapayProvider implements BankingProviderInterface
             'message' => $data['message'] ?? 'Failed to retrieve card details'
         ];
     }
-}
 
+    /**
+     * Terminate Virtual Card (Phase 5)
+     */
+    public function terminateVirtualCard(string $cardId): array
+    {
+        $response = $this->httpClient()->withHeaders([
+            'Authorization' => 'Bearer ' . $this->secretKey,
+            'api-key' => $this->apiKey,
+            'Content-Type' => 'application/json'
+        ])->delete("https://api.xixapay.com/api/card/{$cardId}/terminate", [
+                    'businessId' => $this->getPrefixedBusinessId()
+                ]);
+
+        $data = $response->json();
+
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
+            return [
+                'status' => 'success',
+                'message' => $data['message'] ?? 'Card terminated successfully',
+                'full_response' => $data
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => $data['message'] ?? 'Card termination failed'
+        ];
+    }
+
+    /**
+     * Get Card Transactions (Phase 5)
+     */
+    public function getTransactions(string $cardId): array
+    {
+        $response = $this->httpClient()->withHeaders([
+            'Authorization' => 'Bearer ' . $this->secretKey,
+            'api-key' => $this->apiKey,
+            'Content-Type' => 'application/json'
+        ])->get("https://api.xixapay.com/api/card/{$cardId}/transactions", [
+                    'businessId' => $this->getPrefixedBusinessId()
+                ]);
+
+        $data = $response->json();
+
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
+            return [
+                'status' => 'success',
+                'data' => $data['data'] ?? [],
+                'full_response' => $data
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => $data['message'] ?? 'Failed to fetch transactions'
+        ];
+    }
+
+    /**
+     * Create Virtual Account (Bank Transfer)
+     */
+    public function createVirtualAccount(array $payload): array
+    {
+        $response = $this->httpClient()->withHeaders([
+            'Authorization' => 'Bearer ' . $this->secretKey,
+            'api-key' => $this->apiKey,
+            'Content-Type' => 'application/json'
+        ])->post('https://api.xixapay.com/api/v1/createVirtualAccount', $payload);
+
+        $data = $response->json();
+
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
+            return [
+                'status' => 'success',
+                'message' => $data['message'] ?? 'Virtual account created',
+                'customer' => $data['customer'] ?? [],
+                'bankAccounts' => $data['bankAccounts'] ?? [],
+                'full_response' => $data
+            ];
+        }
+
+        return [
+            'status' => 'error',
+            'message' => $data['message'] ?? 'Virtual account creation failed'
+        ];
+    }
+}
