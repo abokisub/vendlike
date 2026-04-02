@@ -255,20 +255,31 @@ class XixapayProvider implements BankingProviderInterface
             }
         }
 
-        $response = $request->post('https://api.xixapay.com/api/customer/create', [
+        // Build payload — only include date_of_birth or phone_number if provided (user picks one)
+        $payload = [
             'businessId' => $this->businessId,
             'first_name' => $details['first_name'],
             'last_name' => $details['last_name'],
             'email' => $details['email'],
-            'phone_number' => $details['phone_number'],
             'address' => $details['address'],
             'state' => $details['state'],
             'city' => $details['city'],
-            'postal_code' => $details['postal_code'],
-            'date_of_birth' => $details['date_of_birth'],
+            'postal_code' => $details['postal_code'] ?? '100001',
             'id_type' => $details['id_type'],
             'id_number' => $details['id_number'],
-        ]);
+        ];
+
+        // Add phone_number only if provided
+        if (!empty($details['phone_number'])) {
+            $payload['phone_number'] = $details['phone_number'];
+        }
+
+        // Add date_of_birth only if provided
+        if (!empty($details['date_of_birth'])) {
+            $payload['date_of_birth'] = $details['date_of_birth'];
+        }
+
+        $response = $request->post('https://api.xixapay.com/api/customer/create', $payload);
 
         $data = $response->json();
 
