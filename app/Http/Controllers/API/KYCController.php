@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use App\Services\PointWaveService;
 use App\Services\Banking\Providers\XixapayProvider;
@@ -212,8 +211,35 @@ class KYCController extends Controller
             \Log::info("KYC: Using provider: {$kycProvider}");
 
             if ($kycProvider === 'xixapay') {
-                // Route to Xixapay Identity Verification
-                $result = $this->xixapayProvider->verifyIdentity($request->id_type, $request->id_number);
+                // For Xixapay: create customer (this also verifies identity)
+                // Files are already stored locally above
+                $result = $this->xixapayProvider->createCustomer([
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $user->email,
+                    'phone_number' => $phoneForVerification,
+                    'address' => $request->address,
+                    'state' => $request->state,
+                    'city' => $request->city,
+                    'postal_code' => $request->postal_code ?? '100001',
+                    'date_of_birth' => $dobForVerification,
+                    'id_type' => $request->id_type,
+                    'id_number' => $request->id_number,
+                    'id_card' => $request->file('id_card'),
+                    'utility_bill' => $request->file('utility_bill'),
+                ]);
+
+                // Map createCustomer response to standard format
+                if (isset($result['status']) && $result['status'] === 'success') {
+                    // Save customer_id to user table
+                    $customerId = $result['customer_id'] ?? ($result['data']['customer_id'] ?? null);
+                    if ($customerId) {
+                        DB::table('user')->where('id', $user->id)->update(['customer_id' => $customerId]);
+                    }
+                } elseif (isset($result['message']) && str_contains(strtolower($result['message'] ?? ''), 'already exists')) {
+                    // Customer already exists — treat as success
+                    $result['status'] = 'success';
+                }
             } else {
                 // Route to PointWave KYC
                 $result = $this->pointWaveService->submitKYC([
@@ -235,50 +261,46 @@ class KYCController extends Controller
                     'kyc' => '1'
                 ]);
 
-                // Store in pointwave_kyc table (used for both providers)
-                // Note: column is 'status' not 'kyc_status', tier values are 'tier1'/'tier2' not 'tier_1'/'tier_2'
-                $tierMap = ['tier_1' => 'tier1', 'tier_2' => 'tier2'];
-                $dbTier = $tierMap[$tierData['tier']] ?? $tierData['tier'];
-                // Build insert data — only include columns that exist in the table
-                $kycInsertData = [
-                    'id_number_encrypted' => encrypt($request->id_number),
-                    'status' => 'verified',
-                    'tier' => $dbTier,
-                    'daily_limit' => $tierData['daily_limit'],
-                    'transaction_limit' => $tierData['single_limit'],
-                    $request->id_type => $request->id_number, // stores in 'bvn' or 'nin' column
-                    'verified_at' => now(),
-                    'updated_at' => now(),
-                ];
-                // Only add id_type if the column exists (some deployments may not have it)
-                if (Schema::hasColumn('pointwave_kyc', 'id_type')) {
-                    $kycInsertData['id_type'] = $request->id_type;
+                // Only store in pointwave_kyc when using PointWave provider
+                if ($kycProvider === 'pointwave') {
+                    $tierMap = ['tier_1' => 'tier1', 'tier_2' => 'tier2'];
+                    $dbTier = $tierMap[$tierData['tier']] ?? $tierData['tier'];
+                    try {
+                        DB::table('pointwave_kyc')->updateOrInsert(
+                            ['user_id' => $user->id],
+                            [
+                                $request->id_type => $request->id_number,
+                                'status' => 'verified',
+                                'tier' => $dbTier,
+                                'daily_limit' => $tierData['daily_limit'],
+                                'transaction_limit' => $tierData['single_limit'],
+                                'verified_at' => now(),
+                                'updated_at' => now(),
+                            ]
+                        );
+                    } catch (\Exception $e) {
+                        // Log but don't fail — KYC is already approved on user table
+                        \Log::warning("KYC: pointwave_kyc insert failed (non-critical): " . $e->getMessage());
+                    }
                 }
-                // Use 'kyc_status' or 'status' depending on which column exists
-                if (Schema::hasColumn('pointwave_kyc', 'kyc_status')) {
-                    $kycInsertData['kyc_status'] = 'verified';
-                    unset($kycInsertData['status']);
-                }
-
-                DB::table('pointwave_kyc')->updateOrInsert(
-                    ['user_id' => $user->id],
-                    $kycInsertData
-                );
 
                 // Sync to user_kyc table for Admin Visibility
-                // Unique key is on (id_type, id_number)
-                DB::table('user_kyc')->updateOrInsert(
-                    ['id_type' => $request->id_type, 'id_number' => $request->id_number],
-                    [
-                        'user_id' => $user->id,
-                        'full_response_json' => json_encode($result['data'] ?? $result['full_response'] ?? []),
-                        'status' => 'verified',
-                        'verified_at' => now(),
-                        'provider' => $kycProvider,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]
-                );
+                try {
+                    DB::table('user_kyc')->updateOrInsert(
+                        ['id_type' => $request->id_type, 'id_number' => $request->id_number],
+                        [
+                            'user_id' => $user->id,
+                            'full_response_json' => json_encode($result['data'] ?? $result['full_response'] ?? []),
+                            'status' => 'verified',
+                            'verified_at' => now(),
+                            'provider' => $kycProvider,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    \Log::warning("KYC: user_kyc sync failed (non-critical): " . $e->getMessage());
+                }
 
                 \Log::info("KYC: {$kycProvider} verification SUCCESS for User {$user->id}");
 
