@@ -162,7 +162,7 @@ Route::post('admin/giftcard/bulk-status/{id}/secure', [App\Http\Controllers\API\
 
 // Card Settings (Admin)
 Route::get('/secure/card/settings/{id}/habukhan/secure', [AdminController::class, 'getCardSettings']);
-Route::post('/secure/card/settings/update/{id}/habukhan/secure', [AdminController::class, 'UpdateDiscountOther']);
+Route::post('/secure/card/settings/update/{id}/habukhan/secure', [AdminController::class, 'updateCardSettings']);
 
 Route::get('/secure/welcome', [AppController::class, 'welcomeMessage']);
 Route::get('/secure/discount/other', [AppController::class, 'discountOther']);
@@ -226,6 +226,14 @@ Route::get('admin/dollar-card/cards/{id}/secure', [App\Http\Controllers\API\Doll
 Route::post('admin/dollar-card/terminate/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminTerminateCard']);
 Route::post('admin/dollar-card/delete/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminDeleteCard']);
 Route::get('admin/dollar-card/card-info/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminGetCardInfo']);
+
+// New Admin Card Management Routes
+Route::get('admin/dollar-card/customers/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminGetAllCustomers']);
+Route::post('admin/dollar-card/customer/create/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminCreateCustomer']);
+Route::post('admin/dollar-card/customer/update/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminUpdateCustomer']);
+Route::post('admin/dollar-card/card/create/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminCreateCard']);
+Route::post('admin/dollar-card/card/fund/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminFundCard']);
+Route::post('admin/dollar-card/card/withdraw/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminWithdrawCard']);
 
 // Admin KYC Provider Settings
 Route::get('admin/kyc/settings/{id}/secure', [AdminController::class, 'getKycProviderSettings']);
@@ -420,6 +428,9 @@ Route::post('transfer', [TransferPurchase::class, 'TransferRequest']); // Web Tr
 Route::post('paystack/transfer/{id}/secure', [TransferPurchase::class, 'TransferRequest']); // Mobile App Transfer Route
 Route::match(['get', 'post'], 'exam', [ExamPurchase::class, 'ExamPurchase']);
 Route::match(['get', 'post'], 'user', [AccessUser::class, 'Generate']);
+// Alias for external clients blocked by WAF on /api/user path
+Route::match(['get', 'post'], 'auth/token', [AccessUser::class, 'Generate']);
+Route::match(['get', 'post'], 'client/login', [AccessUser::class, 'Generate']);
 Route::post('data_card', [DataCard::class, 'DataCardPurchase']);
 Route::post('recharge_card', [RechargeCard::class, 'RechargeCardPurchase']);
 Route::post('autopilot/a2c/otp', [AirtimeCash::class, 'A2C_SendOtp']);
