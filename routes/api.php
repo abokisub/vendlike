@@ -414,20 +414,27 @@ Route::get('website/app/{id}/dataplan', [PlanController::class, 'DataList']);
 Route::get('website/app/cableplan', [PlanController::class, 'CableList']);
 Route::get('website/app/disco', [PlanController::class, 'DiscoList']);
 Route::get('website/app/exam', [PlanController::class, 'ExamList']);
-// api endpoint for users
+// api endpoint for users — with and without trailing slash (for oyitipay/avrilwise script compatibility)
 Route::match(['get', 'post'], 'data', [DataPurchase::class, 'BuyData']);
+Route::match(['get', 'post'], 'data/', [DataPurchase::class, 'BuyData']);
 Route::match(['get', 'post'], 'topup', [AirtimePurchase::class, 'BuyAirtime']);
+Route::match(['get', 'post'], 'topup/', [AirtimePurchase::class, 'BuyAirtime']);
 Route::get('cable/cable-validation', [IUCvad::class, 'IUC']);
 Route::match(['get', 'post'], 'cable', [CablePurchase::class, 'BuyCable']);
+Route::match(['get', 'post'], 'cable/', [CablePurchase::class, 'BuyCable']);
 Route::get('bill/bill-validation', [MeterVerify::class, 'Check']);
 Route::match(['get', 'post'], 'bill', [BillPurchase::class, 'Buy']);
+Route::match(['get', 'post'], 'bill/', [BillPurchase::class, 'Buy']);
 Route::post('cash', [AirtimeCash::class, 'Convert']);
 Route::match(['get', 'post'], 'bulksms', [BulksmsPurchase::class, 'Buy']);
+Route::match(['get', 'post'], 'bulksms/', [BulksmsPurchase::class, 'Buy']);
 Route::post('transferwallet', [BonusTransfer::class, 'Convert']);
 Route::post('transfer', [TransferPurchase::class, 'TransferRequest']); // Web Transfer Route
 Route::post('paystack/transfer/{id}/secure', [TransferPurchase::class, 'TransferRequest']); // Mobile App Transfer Route
 Route::match(['get', 'post'], 'exam', [ExamPurchase::class, 'ExamPurchase']);
+Route::match(['get', 'post'], 'exam/', [ExamPurchase::class, 'ExamPurchase']);
 Route::match(['get', 'post'], 'user', [AccessUser::class, 'Generate']);
+Route::match(['get', 'post'], 'user/', [AccessUser::class, 'Generate']);
 // Alias for external clients blocked by WAF on /api/user path
 Route::match(['get', 'post'], 'auth/token', [AccessUser::class, 'Generate']);
 Route::match(['get', 'post'], 'client/login', [AccessUser::class, 'Generate']);
