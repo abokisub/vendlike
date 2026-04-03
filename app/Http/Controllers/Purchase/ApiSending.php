@@ -95,11 +95,13 @@ class ApiSending extends Controller
 
                 // Step 3: Make the actual transaction call
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $data['endpoint']);
+                $txEndpoint = rtrim($data['endpoint'], '/'); // strip trailing slash
+                curl_setopt($ch, CURLOPT_URL, $txEndpoint);
                 curl_setopt($ch, CURLOPT_POST, 1);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($sending_data));
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // follow redirects
 
                 // CRITICAL: Add Origin header to trigger External API flow (no PIN required)
                 $headers = [
@@ -145,11 +147,15 @@ class ApiSending extends Controller
 
     public static function AdexApi($data, $sending_data)
     {
+        // Strip trailing slash from website_url to prevent 301 redirects
+        $baseUrl = rtrim($data['website_url'], '/');
+
         // Step 1: Get AccessToken using Basic Authentication
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $data['website_url'] . "/api/user/");
+        curl_setopt($ch, CURLOPT_URL, $baseUrl . "/api/user");
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // follow any redirects
         curl_setopt(
             $ch,
             CURLOPT_HTTPHEADER,
@@ -159,7 +165,7 @@ class ApiSending extends Controller
         );
 
         \Log::info('Adex Auth Request:', [
-            'url' => $data['website_url'] . "/api/user/",
+            'url' => $baseUrl . "/api/user",
             'auth_header' => "Basic " . $data['accessToken']
         ]);
 
@@ -183,10 +189,12 @@ class ApiSending extends Controller
 
                 // Step 2: Make the actual API call using the AccessToken
                 $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $data['endpoint']);
+                $endpoint = rtrim($data['endpoint'], '/'); // strip trailing slash
+                curl_setopt($ch, CURLOPT_URL, $endpoint);
                 curl_setopt($ch, CURLOPT_POST, 1);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($sending_data));
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // follow redirects
                 $headers = [
                     "Authorization: Token $access_token",
                     'Content-Type: application/json'
