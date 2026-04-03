@@ -136,18 +136,6 @@ class DollarCardController extends Controller
             // 1. Deduct customer balance
             DB::table('user')->where('id', $user->id)->decrement('bal', $totalCostNgn);
 
-            // 2. Log transaction
-            DB::table('transaction')->insert([
-                'username' => $user->username,
-                'transid' => $transId,
-                'type' => 'Dollar Card Creation',
-                'amount' => $totalCostNgn,
-                'oldbal' => $user->bal,
-                'newbal' => $user->bal - $totalCostNgn,
-                'status' => 'processing',
-                'date' => now(),
-            ]);
-
             // 3. Provider Specific Creation
             if ($providerName === 'sudo') {
                 if (empty($user->sudo_customer_id)) {
@@ -171,19 +159,17 @@ class DollarCardController extends Controller
                     'sudo_customer_id' => ($providerName === 'sudo') ? $user->sudo_customer_id : $user->customer_id,
                     'masked_pan' => $cardData['masked_pan'] ?? $cardData['pan'] ?? '•••• •••• •••• ' . ($cardData['last4'] ?? '••••'),
                     'brand' => $cardData['brand'] ?? 'Visa',
-                    'expiry_month' => $cardData['expiry_month'],
-                    'expiry_year' => $cardData['expiry_year'],
+                    'expiry_month' => $cardData['expiry_month'] ?? null,
+                    'expiry_year' => $cardData['expiry_year'] ?? null,
                     'card_balance' => $fundingAmountUsd,
-                    'last4' => $cardData['last4'],
+                    'last4' => $cardData['last4'] ?? null,
                     'status' => 'active',
                     'full_response_json' => json_encode($result),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
 
-                DB::table('transaction')->where('transid', $transId)->update(['status' => 'completed']);
-
-                // 4. Log to message table for Admin Card Transactions
+                // Log to message table
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCostNgn,
@@ -340,25 +326,14 @@ class DollarCardController extends Controller
             $transId = 'CARD_FUND_' . strtoupper(bin2hex(random_bytes(4)));
 
             DB::table('user')->where('id', $userId)->decrement('bal', $totalCostNgn);
-            DB::table('transaction')->insert([
-                'username' => $user->username,
-                'transid' => $transId,
-                'type' => 'Dollar Card Funding',
-                'amount' => $totalCostNgn,
-                'oldbal' => $user->bal,
-                'newbal' => $user->bal - $totalCostNgn,
-                'status' => 'processing',
-                'date' => now(),
-            ]);
 
             $provider = $this->getProvider($card->provider);
             $result = $provider->fundVirtualCard($card->card_id, $fundingAmountUsd);
 
             if (isset($result['status']) && $result['status'] === 'success') {
                 DB::table('virtual_cards')->where('id', $card->id)->increment('card_balance', $fundingAmountUsd);
-                DB::table('transaction')->where('transid', $transId)->update(['status' => 'completed']);
 
-                // Log to message table for Admin Card Transactions
+                // Log to message table
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCostNgn,
@@ -432,18 +407,7 @@ class DollarCardController extends Controller
                 DB::table('user')->where('id', $userId)->increment('bal', $totalCreditNgn);
                 DB::table('virtual_cards')->where('id', $card->id)->decrement('card_balance', $withdrawAmountUsd);
 
-                DB::table('transaction')->insert([
-                    'username' => $user->username,
-                    'transid' => $transId,
-                    'type' => 'Dollar Card Withdrawal',
-                    'amount' => $totalCreditNgn,
-                    'oldbal' => $user->bal,
-                    'newbal' => $user->bal + $totalCreditNgn,
-                    'status' => 'completed',
-                    'date' => now(),
-                ]);
-
-                // Log to message table for Admin Card Transactions
+                // Log to message table
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCreditNgn,
@@ -532,20 +496,11 @@ class DollarCardController extends Controller
                     $settings = $this->getCardSettings();
                     $dollarRate = $this->getActiveRate($settings, 'sell');
                     $refundNgn = $refundAmountUsd * $dollarRate;
+                    $refundTransId = 'CARD_TERM_' . strtoupper(bin2hex(random_bytes(4)));
 
                     DB::table('user')->where('id', $userId)->increment('bal', $refundNgn);
-                    DB::table('transaction')->insert([
-                        'username' => $user->username,
-                        'transid' => 'CARD_REFUND_' . strtoupper(bin2hex(random_bytes(4))),
-                        'type' => 'Dollar Card Termination Refund',
-                        'amount' => $refundNgn,
-                        'oldbal' => $user->bal,
-                        'newbal' => $user->bal + $refundNgn,
-                        'status' => 'completed',
-                        'date' => now(),
-                    ]);
 
-                    // Log to message table for Admin Card Transactions
+                    // Log to message table
                     DB::table('message')->insert([
                         'username' => $user->username,
                         'amount' => $refundNgn,
@@ -554,7 +509,7 @@ class DollarCardController extends Controller
                         'newbal' => $user->bal + $refundNgn,
                         'habukhan_date' => $this->system_date(),
                         'plan_status' => 1,
-                        'transid' => 'CARD_TERM_' . strtoupper(bin2hex(random_bytes(4))),
+                        'transid' => $refundTransId,
                         'role' => 'dollar_card'
                     ]);
                 }
