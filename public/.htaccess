@@ -9,7 +9,12 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Redirect Trailing Slashes If Not A Folder...
+    # For API paths: strip trailing slash internally (no redirect) so external scripts work
+    RewriteCond %{REQUEST_URI} ^/api/(.+)/$
+    RewriteRule ^api/(.+)/$ /api/$1 [L,QSA]
+
+    # Redirect Trailing Slashes If Not A Folder (for non-API paths only)...
+    RewriteCond %{REQUEST_URI} !^/api/
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
