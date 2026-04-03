@@ -240,8 +240,6 @@ class KYCController extends Controller
 
                     if ($customerId) {
                         DB::table('user')->where('id', $user->id)->update(['customer_id' => $customerId]);
-
-                        // Also save to dollar_customers table so admin dashboard can see it
                         DB::table('dollar_customers')->updateOrInsert(
                             ['user_id' => $user->id, 'provider' => 'xixapay'],
                             [
@@ -263,18 +261,45 @@ class KYCController extends Controller
                         );
                     }
                 } elseif (isset($result['message']) && str_contains(strtolower($result['message'] ?? ''), 'already exists')) {
-                    // Customer already exists on Xixapay — check if we have local record
-                    $existing = DB::table('dollar_customers')
-                        ->where('user_id', $user->id)
-                        ->where('provider', 'xixapay')
-                        ->first();
-                    if ($existing) {
-                        // Sync customer_id back to user table if missing
-                        if (empty($user->customer_id) && $existing->customer_id) {
-                            DB::table('user')->where('id', $user->id)->update(['customer_id' => $existing->customer_id]);
-                        }
+                    // Customer already exists on Xixapay — call update to get customer_id back
+                    $updateResult = $this->xixapayProvider->updateCustomer([
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'email' => $user->email,
+                        'phone_number' => $phoneForVerification,
+                        'address' => $request->address,
+                        'state' => $request->state,
+                        'city' => $request->city,
+                        'postal_code' => $request->postal_code ?? '100001',
+                        'date_of_birth' => $dobForVerification,
+                        'id_type' => $request->id_type,
+                        'id_number' => $request->id_number,
+                        'id_card' => $request->file('id_card'),
+                        'utility_bill' => $request->file('utility_bill'),
+                    ]);
+
+                    $customerId = $updateResult['customer_id']
+                        ?? ($updateResult['data']['customer_id'] ?? null)
+                        ?? ($updateResult['full_response']['customer']['customer_id'] ?? null);
+
+                    \Log::info("KYC: Xixapay update customer_id: " . ($customerId ?? 'NULL'));
+
+                    if ($customerId) {
+                        DB::table('user')->where('id', $user->id)->update(['customer_id' => $customerId]);
+                        DB::table('dollar_customers')->updateOrInsert(
+                            ['user_id' => $user->id, 'provider' => 'xixapay'],
+                            [
+                                'customer_id' => $customerId,
+                                'first_name' => $firstName,
+                                'last_name' => $lastName,
+                                'email' => $user->email,
+                                'phone' => $phoneForVerification ?? $user->username,
+                                'status' => 'active',
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]
+                        );
                     }
-                    // Treat as success
                     $result['status'] = 'success';
                 }
             } else {
