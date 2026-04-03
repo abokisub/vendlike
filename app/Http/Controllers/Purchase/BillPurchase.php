@@ -16,6 +16,12 @@ class BillPurchase extends Controller
 {
     public function Buy(Request $request)
     {
+        // Universal input merger for GET+body or GET+query
+        if (empty($request->all())) {
+            $raw = $request->getContent();
+            if (!empty($raw)) { $decoded = json_decode($raw, true); if (is_array($decoded)) $request->merge($decoded); }
+            if (!empty($request->query())) $request->merge($request->query());
+        }
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
             $validator = Validator::make($request->all(), [
@@ -93,6 +99,10 @@ class BillPurchase extends Controller
             }
         } else {
             // api verification
+            // Merge query params if body is empty (GET request support)
+            if (empty($request->all()) && !empty($request->query())) {
+                $request->merge($request->query());
+            }
             $validator = Validator::make($request->all(), [
                 'disco' => 'required',
                 'meter_number' => 'required',

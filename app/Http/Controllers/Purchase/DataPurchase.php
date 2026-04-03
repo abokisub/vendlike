@@ -22,6 +22,20 @@ class DataPurchase extends Controller
         \Log::info('🚨 DATA PURCHASE DEBUG - Request URL: ' . $request->url());
         \Log::info('🚨 DATA PURCHASE DEBUG - Authorization header: ' . $request->header('Authorization'));
 
+        // ── Universal input merger: handle GET+body, GET+query, POST+body ──
+        if (empty($request->all())) {
+            $rawBody = $request->getContent();
+            if (!empty($rawBody)) {
+                $decoded = json_decode($rawBody, true);
+                if (is_array($decoded)) {
+                    $request->merge($decoded);
+                }
+            }
+            if (!empty($request->query())) {
+                $request->merge($request->query());
+            }
+        }
+
         // check where the response coming from
         $explode_url = explode(',', config('app.habukhan_app_key'));
         \Log::info('🚨 DATA PURCHASE DEBUG - Origin header: ' . $request->headers->get('origin'));

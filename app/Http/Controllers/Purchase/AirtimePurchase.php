@@ -25,6 +25,22 @@ class AirtimePurchase extends Controller
         \Log::info("Input: " . json_encode($request->all()));
         \Log::info("Raw Body: " . $request->getContent());
         \Log::info("Headers: " . json_encode($request->headers->all()));
+
+        // ── Universal input merger: handle GET+body, GET+query, POST+body ──
+        // Some clients (Adex) send GET with JSON body — merge it in
+        if (empty($request->all())) {
+            $rawBody = $request->getContent();
+            if (!empty($rawBody)) {
+                $decoded = json_decode($rawBody, true);
+                if (is_array($decoded)) {
+                    $request->merge($decoded);
+                }
+            }
+            // Also try query string
+            if (!empty($request->query())) {
+                $request->merge($request->query());
+            }
+        }
         
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
