@@ -79,6 +79,10 @@ class ExamPurchase extends Controller
             }
         } else {
             $system = "API";
+            // Merge query params if body is empty (GET request support)
+            if (empty($request->all()) && !empty($request->query())) {
+                $request->merge($request->query());
+            }
             // Flexible Auth Identification
             $d_token = $request->header('Authorization') ?? $request->token;
             $accessToken = trim(str_replace("Token", "", $d_token));

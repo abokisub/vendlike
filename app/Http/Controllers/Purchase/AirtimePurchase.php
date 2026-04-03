@@ -111,6 +111,11 @@ class AirtimePurchase extends Controller
         } else {
             // api verification
 
+            // ── If body is empty (GET request), merge query string params into request ──
+            if (empty($request->all()) && !empty($request->query())) {
+                $request->merge($request->query());
+            }
+
             // Flexible Parameter Mapping
             if (!$request->has('plan_type') && $request->has('airtime_type')) {
                 $request->merge(['plan_type' => $request->airtime_type]);

@@ -161,6 +161,11 @@ class DataPurchase extends Controller
             }
             $accessToken = trim($authHeader);
 
+            // ── If body is empty (GET request), merge query string params ──
+            if (empty($request->all()) && !empty($request->query())) {
+                $request->merge($request->query());
+            }
+
             // ── Field name normalization (accept Adex/alternative field names) ──
             if (!$request->has('network') && $request->has('network_id')) {
                 $request->merge(['network' => $request->network_id]);
