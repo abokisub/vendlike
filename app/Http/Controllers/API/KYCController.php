@@ -230,9 +230,14 @@ class KYCController extends Controller
                 ]);
 
                 // Map createCustomer response to standard format
-                if (isset($result['status']) && $result['status'] === 'success') {
-                    // Save customer_id to user table
-                    $customerId = $result['customer_id'] ?? ($result['data']['customer_id'] ?? null);
+                if (isset($result['status']) && ($result['status'] === 'success' || $result['status'] === true)) {
+                    // Xixapay returns customer_id inside 'customer' key OR 'data' key
+                    $customerId = $result['customer_id']
+                        ?? ($result['data']['customer_id'] ?? null)
+                        ?? ($result['full_response']['customer']['customer_id'] ?? null);
+
+                    \Log::info("KYC: Xixapay customer_id extracted: " . ($customerId ?? 'NULL'));
+
                     if ($customerId) {
                         DB::table('user')->where('id', $user->id)->update(['customer_id' => $customerId]);
 
