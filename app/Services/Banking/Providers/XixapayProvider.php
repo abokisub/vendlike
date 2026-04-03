@@ -286,8 +286,10 @@ class XixapayProvider implements BankingProviderInterface
         if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
             return [
                 'status' => 'success',
-                'data' => $data['data'] ?? [],
-                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? null,
+                'data' => $data['customer'] ?? $data['data'] ?? [],
+                // Xixapay returns customer_id inside 'customer' key
+                'customer_id' => $data['customer']['customer_id']
+                    ?? ($data['data']['customer_id'] ?? null),
                 'full_response' => $data
             ];
         }
@@ -341,10 +343,15 @@ class XixapayProvider implements BankingProviderInterface
         $data = $response->json();
 
         if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
+            // Xixapay returns customer_id inside 'customer' key
+            $customerId = $data['customer']['customer_id']
+                ?? $data['data']['customer_id']
+                ?? $data['data']['id']
+                ?? null;
             return [
                 'status' => 'success',
-                'data' => $data['data'] ?? [],
-                'customer_id' => $data['data']['customer_id'] ?? $data['data']['id'] ?? null,
+                'data' => $data['customer'] ?? $data['data'] ?? [],
+                'customer_id' => $customerId,
                 'full_response' => $data
             ];
         }

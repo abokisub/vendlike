@@ -6,22 +6,24 @@ $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-// Check what columns exist and what data we have
-$cols = DB::select("SHOW COLUMNS FROM `user` LIKE '%customer%'");
-echo "Customer columns: " . json_encode(array_column($cols, 'Field')) . "\n";
-
-$cols2 = DB::select("SHOW COLUMNS FROM `user` LIKE '%kyc%'");
-echo "KYC columns: " . json_encode(array_column($cols2, 'Field')) . "\n";
-
-// Check user 20 specifically
+// Check what Xixapay returned for user 20
 $u20 = DB::table('user')->where('id', 20)->first();
-echo "User 20 customer_id: " . ($u20->customer_id ?? 'NULL') . "\n";
-echo "User 20 kyc: " . ($u20->kyc ?? 'NULL') . "\n";
-echo "User 20 kyc_status: " . ($u20->kyc_status ?? 'NULL') . "\n";
+echo "User 20 xixapay_kyc_data: " . ($u20->xixapay_kyc_data ?? 'NULL') . "\n";
+echo "User 20 kyc_documents: " . substr($u20->kyc_documents ?? 'NULL', 0, 200) . "\n";
 
-// Check dollar_customers table
-$dcCols = DB::select("SHOW COLUMNS FROM `dollar_customers`");
-echo "dollar_customers columns: " . json_encode(array_column($dcCols, 'Field')) . "\n";
+// Check dollar_customers
+$dc = DB::table('dollar_customers')->where('user_id', 20)->first();
+echo "dollar_customers for user 20: " . json_encode($dc) . "\n";
+
+// Try to get customer_id from kyc_documents JSON
+$kycDocs = json_decode($u20->kyc_documents ?? '{}', true);
+$submittedEmail = $kycDocs['submitted_metadata']['email'] ?? $u20->email;
+
+// Call Xixapay to get/create customer for user 20
+// We'll use the stored BVN from user table
+$bvn = $u20->bvn ?? null;
+echo "User 20 BVN: " . ($bvn ?? 'NULL') . "\n";
+echo "User 20 email: " . $u20->email . "\n";
 
 $users = DB::table('user')->whereNotNull('customer_id')->where('customer_id', '!=', '')->get();
 
