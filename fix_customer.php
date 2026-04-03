@@ -6,18 +6,27 @@ $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-$u = DB::table('user')->where('id', 20)->first();
-echo "User: " . $u->username . "\n";
-echo "customer_id: " . var_export($u->customer_id, true) . "\n";
-echo "kyc: " . $u->kyc . "\n";
-echo "kyc_status: " . ($u->kyc_status ?? 'N/A') . "\n";
+$users = DB::table('user')->whereNotNull('customer_id')->where('customer_id', '!=', '')->get();
 
-// Check if customer exists on Xixapay by looking at kyc_documents
-echo "kyc_documents: " . ($u->kyc_documents ?? 'NULL') . "\n";
+foreach ($users as $u) {
+    $parts = explode(' ', $u->name ?? '');
+    $firstName = $parts[0] ?? '';
+    $lastName = implode(' ', array_slice($parts, 1)) ?: $firstName;
 
-// Check dollar_customers table
-$dc = DB::table('dollar_customers')->where('user_id', 20)->get();
-echo "dollar_customers rows: " . $dc->count() . "\n";
-foreach ($dc as $row) {
-    echo "  - provider: {$row->provider}, customer_id: {$row->customer_id}\n";
+    DB::table('dollar_customers')->updateOrInsert(
+        ['user_id' => $u->id, 'provider' => 'xixapay'],
+        [
+            'customer_id' => $u->customer_id,
+            'first_name'  => $firstName,
+            'last_name'   => $lastName,
+            'email'       => $u->email,
+            'phone'       => $u->username,
+            'status'      => 'active',
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]
+    );
+    echo "Synced user {$u->id} ({$u->username}) => {$u->customer_id}\n";
 }
+
+echo "Done. Total: " . count($users) . "\n";
