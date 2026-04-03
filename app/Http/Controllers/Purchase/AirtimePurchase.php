@@ -17,6 +17,15 @@ class AirtimePurchase extends Controller
 
     public function BuyAirtime(Request $request)
     {
+        // DEBUG LOGGING
+        \Log::info("--- START BuyAirtime ---");
+        \Log::info("URL: " . $request->fullUrl());
+        \Log::info("Method: " . $request->method());
+        \Log::info("Content-Type: " . $request->header('Content-Type'));
+        \Log::info("Input: " . json_encode($request->all()));
+        \Log::info("Raw Body: " . $request->getContent());
+        \Log::info("Headers: " . json_encode($request->headers->all()));
+        
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
             $validator = Validator::make($request->all(), [
@@ -105,6 +114,16 @@ class AirtimePurchase extends Controller
             // Flexible Parameter Mapping
             if (!$request->has('plan_type') && $request->has('airtime_type')) {
                 $request->merge(['plan_type' => $request->airtime_type]);
+            }
+            // ── Field name normalization ──
+            if (!$request->has('network') && $request->has('network_id')) {
+                $request->merge(['network' => $request->network_id]);
+            }
+            if (!$request->has('plan_type')) {
+                $request->merge(['plan_type' => 'VTU']);
+            }
+            if (!$request->has('bypass')) {
+                $request->merge(['bypass' => false]);
             }
 
             $validator = Validator::make($request->all(), [

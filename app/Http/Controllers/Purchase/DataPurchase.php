@@ -160,6 +160,21 @@ class DataPurchase extends Controller
                 $authHeader = substr($authHeader, 6);
             }
             $accessToken = trim($authHeader);
+
+            // ── Field name normalization (accept Adex/alternative field names) ──
+            if (!$request->has('network') && $request->has('network_id')) {
+                $request->merge(['network' => $request->network_id]);
+            }
+            if (!$request->has('data_plan') && $request->has('plan_id')) {
+                $request->merge(['data_plan' => $request->plan_id]);
+            }
+            if (!$request->has('data_plan') && $request->has('plan')) {
+                $request->merge(['data_plan' => $request->plan]);
+            }
+            if (!$request->has('bypass')) {
+                $request->merge(['bypass' => false]);
+            }
+
             $validator = Validator::make($request->all(), [
                 'network' => 'required',
                 'phone' => 'required|numeric|digits:11',
