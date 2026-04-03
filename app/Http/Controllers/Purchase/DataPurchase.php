@@ -29,6 +29,9 @@ class DataPurchase extends Controller
                 $decoded = json_decode($rawBody, true);
                 if (is_array($decoded)) {
                     $request->merge($decoded);
+                } else {
+                    parse_str($rawBody, $formData);
+                    if (!empty($formData)) $request->merge($formData);
                 }
             }
             if (!empty($request->query())) {

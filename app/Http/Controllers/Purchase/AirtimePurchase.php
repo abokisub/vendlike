@@ -27,13 +27,20 @@ class AirtimePurchase extends Controller
         \Log::info("Headers: " . json_encode($request->headers->all()));
 
         // ── Universal input merger: handle GET+body, GET+query, POST+body ──
-        // Some clients (Adex) send GET with JSON body — merge it in
+        // Some clients (Adex) send GET with JSON body or form-encoded body — merge it in
         if (empty($request->all())) {
             $rawBody = $request->getContent();
             if (!empty($rawBody)) {
+                // Try JSON first
                 $decoded = json_decode($rawBody, true);
                 if (is_array($decoded)) {
                     $request->merge($decoded);
+                } else {
+                    // Try form-encoded (key=value&key2=value2)
+                    parse_str($rawBody, $formData);
+                    if (!empty($formData)) {
+                        $request->merge($formData);
+                    }
                 }
             }
             // Also try query string
