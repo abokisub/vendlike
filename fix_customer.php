@@ -6,6 +6,23 @@ $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
+// Check what columns exist and what data we have
+$cols = DB::select("SHOW COLUMNS FROM `user` LIKE '%customer%'");
+echo "Customer columns: " . json_encode(array_column($cols, 'Field')) . "\n";
+
+$cols2 = DB::select("SHOW COLUMNS FROM `user` LIKE '%kyc%'");
+echo "KYC columns: " . json_encode(array_column($cols2, 'Field')) . "\n";
+
+// Check user 20 specifically
+$u20 = DB::table('user')->where('id', 20)->first();
+echo "User 20 customer_id: " . ($u20->customer_id ?? 'NULL') . "\n";
+echo "User 20 kyc: " . ($u20->kyc ?? 'NULL') . "\n";
+echo "User 20 kyc_status: " . ($u20->kyc_status ?? 'NULL') . "\n";
+
+// Check dollar_customers table
+$dcCols = DB::select("SHOW COLUMNS FROM `dollar_customers`");
+echo "dollar_customers columns: " . json_encode(array_column($dcCols, 'Field')) . "\n";
+
 $users = DB::table('user')->whereNotNull('customer_id')->where('customer_id', '!=', '')->get();
 
 foreach ($users as $u) {
