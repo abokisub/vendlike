@@ -649,15 +649,28 @@ class DollarCardController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
         }
 
-        $provider = $this->getProvider($card->provider);
-        $result = $provider->terminateVirtualCard($cardId);
-
-        if ($result['status'] === 'success') {
+        // If already terminated, just update local status
+        if (in_array($card->status, ['terminated', 'canceled'])) {
             DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => 'terminated']);
-            return response()->json(['status' => 'success', 'message' => 'Card terminated successfully']);
+            return response()->json(['status' => 'success', 'message' => 'Card marked as terminated']);
         }
 
-        return response()->json(['status' => 'error', 'message' => $result['message']], 400);
+        // Try provider API — if it fails (e.g. Sudo no longer active), still mark locally
+        try {
+            $provider = $this->getProvider($card->provider);
+            $result = $provider->terminateVirtualCard($cardId);
+            if ($result['status'] === 'success') {
+                DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => 'terminated']);
+                return response()->json(['status' => 'success', 'message' => 'Card terminated successfully']);
+            }
+            // Provider returned error — still mark locally for admin cleanup
+            DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => 'terminated']);
+            return response()->json(['status' => 'success', 'message' => 'Card marked as terminated locally (provider: ' . ($result['message'] ?? 'error') . ')']);
+        } catch (\Exception $e) {
+            // Provider unreachable — mark locally anyway
+            DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => 'terminated']);
+            return response()->json(['status' => 'success', 'message' => 'Card marked as terminated locally (provider unavailable)']);
+        }
     }
 
     /**
