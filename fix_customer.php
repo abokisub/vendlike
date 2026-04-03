@@ -7,23 +7,17 @@ $kernel->bootstrap();
 use Illuminate\Support\Facades\DB;
 
 $u = DB::table('user')->where('id', 20)->first();
-if ($u && $u->customer_id) {
-    $p = explode(' ', $u->name);
-    DB::table('dollar_customers')->updateOrInsert(
-        ['user_id' => $u->id, 'provider' => 'xixapay'],
-        [
-            'customer_id' => $u->customer_id,
-            'first_name' => $p[0] ?? '',
-            'last_name' => implode(' ', array_slice($p, 1)) ?: ($p[0] ?? ''),
-            'email' => $u->email,
-            'phone' => $u->username,
-            'status' => 'active',
-            'created_at' => now(),
-            'updated_at' => now()
-        ]
-    );
-    echo "Done: " . $u->customer_id . "\n";
-} else {
-    echo "User 20 not found or no customer_id\n";
-    if ($u) echo "customer_id value: " . var_export($u->customer_id, true) . "\n";
+echo "User: " . $u->username . "\n";
+echo "customer_id: " . var_export($u->customer_id, true) . "\n";
+echo "kyc: " . $u->kyc . "\n";
+echo "kyc_status: " . ($u->kyc_status ?? 'N/A') . "\n";
+
+// Check if customer exists on Xixapay by looking at kyc_documents
+echo "kyc_documents: " . ($u->kyc_documents ?? 'NULL') . "\n";
+
+// Check dollar_customers table
+$dc = DB::table('dollar_customers')->where('user_id', 20)->get();
+echo "dollar_customers rows: " . $dc->count() . "\n";
+foreach ($dc as $row) {
+    echo "  - provider: {$row->provider}, customer_id: {$row->customer_id}\n";
 }
