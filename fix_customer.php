@@ -5,47 +5,77 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
-// Check what Xixapay returned for user 20
+$secretKey = env('XIXAPAY_SECRET_KEY');
+$apiKey = env('XIXAPAY_API_KEY');
+$businessId = env('XIXAPAY_BUSINESS_ID');
+
 $u20 = DB::table('user')->where('id', 20)->first();
-echo "User 20 xixapay_kyc_data: " . ($u20->xixapay_kyc_data ?? 'NULL') . "\n";
-echo "User 20 kyc_documents: " . substr($u20->kyc_documents ?? 'NULL', 0, 200) . "\n";
+echo "User: {$u20->username} | email: {$u20->email}\n";
 
-// Check dollar_customers
-$dc = DB::table('dollar_customers')->where('user_id', 20)->first();
-echo "dollar_customers for user 20: " . json_encode($dc) . "\n";
-
-// Try to get customer_id from kyc_documents JSON
+// Try to re-create customer on Xixapay — if already exists it returns the existing customer_id
 $kycDocs = json_decode($u20->kyc_documents ?? '{}', true);
-$submittedEmail = $kycDocs['submitted_metadata']['email'] ?? $u20->email;
+$meta = $kycDocs['submitted_metadata'] ?? [];
 
-// Call Xixapay to get/create customer for user 20
-// We'll use the stored BVN from user table
-$bvn = $u20->bvn ?? null;
-echo "User 20 BVN: " . ($bvn ?? 'NULL') . "\n";
-echo "User 20 email: " . $u20->email . "\n";
+$nameParts = explode(' ', $u20->name ?? '');
+$firstName = $nameParts[0] ?? 'User';
+$lastName = implode(' ', array_slice($nameParts, 1)) ?: $firstName;
 
-$users = DB::table('user')->whereNotNull('customer_id')->where('customer_id', '!=', '')->get();
+// Build multipart request
+$response = Http::timeout(60)
+    ->withHeaders([
+        'Authorization' => 'Bearer ' . $secretKey,
+        'api-key' => $apiKey,
+    ])
+    ->asMultipart()
+    ->post('https://api.xixapay.com/api/customer/create', [
+        ['name' => 'businessId', 'contents' => $businessId],
+        ['name' => 'first_name', 'contents' => $firstName],
+        ['name' => 'last_name', 'contents' => $lastName],
+        ['name' => 'email', 'contents' => $u20->email],
+        ['name' => 'phone_number', 'contents' => $meta['phone'] ?? $u20->username],
+        ['name' => 'address', 'contents' => $meta['address'] ?? '10 Test Street'],
+        ['name' => 'state', 'contents' => $meta['state'] ?? 'Lagos'],
+        ['name' => 'city', 'contents' => $meta['city'] ?? 'Ikeja'],
+        ['name' => 'postal_code', 'contents' => $meta['postal_code'] ?? '100001'],
+        ['name' => 'date_of_birth', 'contents' => $meta['dob'] ?? '1990-01-01'],
+        ['name' => 'id_type', 'contents' => $kycDocs['id_type'] ?? 'bvn'],
+        ['name' => 'id_number', 'contents' => $kycDocs['id_number'] ?? $u20->bvn],
+    ]);
 
-foreach ($users as $u) {
-    $parts = explode(' ', $u->name ?? '');
-    $firstName = $parts[0] ?? '';
-    $lastName = implode(' ', array_slice($parts, 1)) ?: $firstName;
+$data = $response->json();
+echo "Xixapay response: " . json_encode($data) . "\n";
 
+// Extract customer_id
+$customerId = $data['customer']['customer_id']
+    ?? $data['data']['customer_id']
+    ?? null;
+
+if (!$customerId && isset($data['message']) && str_contains(strtolower($data['message']), 'already exists')) {
+    echo "Customer already exists on Xixapay — need to find their customer_id\n";
+    echo "Please check Xixapay dashboard for email: {$u20->email}\n";
+} elseif ($customerId) {
+    echo "Got customer_id: $customerId\n";
+
+    // Save to user table
+    DB::table('user')->where('id', 20)->update(['customer_id' => $customerId]);
+
+    // Save to dollar_customers
     DB::table('dollar_customers')->updateOrInsert(
-        ['user_id' => $u->id, 'provider' => 'xixapay'],
+        ['user_id' => 20, 'provider' => 'xixapay'],
         [
-            'customer_id' => $u->customer_id,
-            'first_name'  => $firstName,
-            'last_name'   => $lastName,
-            'email'       => $u->email,
-            'phone'       => $u->username,
-            'status'      => 'active',
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'customer_id' => $customerId,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $u20->email,
+            'phone' => $meta['phone'] ?? $u20->username,
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
         ]
     );
-    echo "Synced user {$u->id} ({$u->username}) => {$u->customer_id}\n";
+    echo "Saved to user table and dollar_customers. Done!\n";
+} else {
+    echo "Could not get customer_id. Full response above.\n";
 }
-
-echo "Done. Total: " . count($users) . "\n";
