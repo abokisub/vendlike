@@ -235,9 +235,41 @@ class KYCController extends Controller
                     $customerId = $result['customer_id'] ?? ($result['data']['customer_id'] ?? null);
                     if ($customerId) {
                         DB::table('user')->where('id', $user->id)->update(['customer_id' => $customerId]);
+
+                        // Also save to dollar_customers table so admin dashboard can see it
+                        DB::table('dollar_customers')->updateOrInsert(
+                            ['user_id' => $user->id, 'provider' => 'xixapay'],
+                            [
+                                'customer_id' => $customerId,
+                                'first_name' => $firstName,
+                                'last_name' => $lastName,
+                                'email' => $user->email,
+                                'phone' => $phoneForVerification ?? $user->username,
+                                'address' => $request->address,
+                                'city' => $request->city,
+                                'state' => $request->state,
+                                'date_of_birth' => $dobForVerification,
+                                'id_type' => $request->id_type,
+                                'id_number' => $request->id_number,
+                                'status' => 'active',
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]
+                        );
                     }
                 } elseif (isset($result['message']) && str_contains(strtolower($result['message'] ?? ''), 'already exists')) {
-                    // Customer already exists — treat as success
+                    // Customer already exists on Xixapay — check if we have local record
+                    $existing = DB::table('dollar_customers')
+                        ->where('user_id', $user->id)
+                        ->where('provider', 'xixapay')
+                        ->first();
+                    if ($existing) {
+                        // Sync customer_id back to user table if missing
+                        if (empty($user->customer_id) && $existing->customer_id) {
+                            DB::table('user')->where('id', $user->id)->update(['customer_id' => $existing->customer_id]);
+                        }
+                    }
+                    // Treat as success
                     $result['status'] = 'success';
                 }
             } else {
