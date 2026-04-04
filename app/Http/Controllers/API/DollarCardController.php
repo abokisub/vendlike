@@ -35,14 +35,24 @@ class DollarCardController extends Controller
             // Fallback to verifyapptoken (mobile/app token)
             $userId = $this->verifyapptoken($token);
         }
-        if (!$userId) return null;
+        if (!$userId) {
+            \Log::warning("verifyAdminToken: token not resolved. Token prefix: " . substr($token ?? '', 0, 20));
+            return null;
+        }
 
         // Check if user is admin
         $user = DB::table('user')->where('id', $userId)->first();
-        if (!$user) return null;
+        if (!$user) {
+            \Log::warning("verifyAdminToken: user not found for id: $userId");
+            return null;
+        }
 
         $type = strtoupper(trim($user->type ?? ''));
-        if ($type !== 'ADMIN') return null;
+        \Log::info("verifyAdminToken: userId=$userId, type=$type");
+        if ($type !== 'ADMIN') {
+            \Log::warning("verifyAdminToken: user $userId is not ADMIN, type=$type");
+            return null;
+        }
 
         return $userId;
     }
