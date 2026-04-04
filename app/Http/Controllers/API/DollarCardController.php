@@ -25,6 +25,29 @@ class DollarCardController extends Controller
     }
 
     /**
+     * Verify admin token — tries both verifytoken and verifyapptoken
+     */
+    private function verifyAdminToken($token): ?int
+    {
+        // Try verifytoken first (web admin)
+        $userId = $this->verifytoken($token);
+        if (!$userId) {
+            // Fallback to verifyapptoken (mobile/app token)
+            $userId = $this->verifyapptoken($token);
+        }
+        if (!$userId) return null;
+
+        // Check if user is admin
+        $user = DB::table('user')->where('id', $userId)->first();
+        if (!$user) return null;
+
+        $type = strtoupper(trim($user->type ?? ''));
+        if ($type !== 'ADMIN') return null;
+
+        return $userId;
+    }
+
+    /**
      * @param string|null $providerName
      * @return SudoService|XixapayProvider
      */
@@ -239,6 +262,7 @@ class DollarCardController extends Controller
 
         $rspSettings = [
             'dollar_rate' => (float) $this->getActiveRate($settings, 'buy'),
+            'sell_rate' => (float) $this->getActiveRate($settings, 'sell'),
             'funding_fee_percent' => (float) (($effectiveProvider === 'xixapay') ? ($settings->xixapay_funding_fee_percent ?? 1.5) : ($settings->sudo_funding_fee_percent ?? 1.5)),
             'withdrawal_fee_percent' => (float) (($effectiveProvider === 'xixapay') ? ($settings->xixapay_withdrawal_fee_percent ?? 1.5) : ($settings->sudo_withdrawal_fee_percent ?? 1.5)),
             'creation_fee_usd' => (float) (($effectiveProvider === 'xixapay') ? ($settings->xixapay_creation_fee ?? 5.00) : ($settings->sudo_creation_fee ?? 5.00)),
@@ -607,8 +631,8 @@ class DollarCardController extends Controller
      */
     public function adminGetSettings(Request $request, $id)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -621,8 +645,8 @@ class DollarCardController extends Controller
      */
     public function adminUpdateSettings(Request $request, $id)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -655,8 +679,8 @@ class DollarCardController extends Controller
      */
     public function adminGetAllCards(Request $request, $id)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -690,8 +714,8 @@ class DollarCardController extends Controller
      */
     public function adminTerminateCard(Request $request, $id, $cardId)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -729,8 +753,8 @@ class DollarCardController extends Controller
      */
     public function adminDeleteCard(Request $request, $id, $cardId)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -743,8 +767,8 @@ class DollarCardController extends Controller
      */
     public function adminGetCardInfo(Request $request, $id, $cardId)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -783,8 +807,8 @@ class DollarCardController extends Controller
      */
     public function adminGetAllCustomers(Request $request, $id)
     {
-        $userId = $this->verifytoken($id);
-        if (!$userId || DB::table('user')->where(['id' => $userId, 'type' => 'ADMIN'])->count() == 0) {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -819,8 +843,8 @@ class DollarCardController extends Controller
      */
     public function adminCreateCustomer(Request $request, $id)
     {
-        $adminId = $this->verifytoken($id);
-        if (!$adminId || DB::table('user')->where(['id' => $adminId, 'type' => 'ADMIN'])->count() == 0) {
+        $adminId = $this->verifyAdminToken($id);
+        if (!$adminId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -947,8 +971,8 @@ class DollarCardController extends Controller
      */
     public function adminCreateCard(Request $request, $id)
     {
-        $adminId = $this->verifytoken($id);
-        if (!$adminId || DB::table('user')->where(['id' => $adminId, 'type' => 'ADMIN'])->count() == 0) {
+        $adminId = $this->verifyAdminToken($id);
+        if (!$adminId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -1026,8 +1050,8 @@ class DollarCardController extends Controller
      */
     public function adminFundCard(Request $request, $id)
     {
-        $adminId = $this->verifytoken($id);
-        if (!$adminId || DB::table('user')->where(['id' => $adminId, 'type' => 'ADMIN'])->count() == 0) {
+        $adminId = $this->verifyAdminToken($id);
+        if (!$adminId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -1065,8 +1089,8 @@ class DollarCardController extends Controller
      */
     public function adminWithdrawCard(Request $request, $id)
     {
-        $adminId = $this->verifytoken($id);
-        if (!$adminId || DB::table('user')->where(['id' => $adminId, 'type' => 'ADMIN'])->count() == 0) {
+        $adminId = $this->verifyAdminToken($id);
+        if (!$adminId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
@@ -1104,8 +1128,8 @@ class DollarCardController extends Controller
      */
     public function adminUpdateCustomer(Request $request, $id)
     {
-        $adminId = $this->verifytoken($id);
-        if (!$adminId || DB::table('user')->where(['id' => $adminId, 'type' => 'ADMIN'])->count() == 0) {
+        $adminId = $this->verifyAdminToken($id);
+        if (!$adminId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
         }
 
