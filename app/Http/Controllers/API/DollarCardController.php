@@ -29,7 +29,12 @@ class DollarCardController extends Controller
      */
     private function verifyAdminToken($token): ?int
     {
-        // Try verifytoken first (web admin)
+        if (empty($token)) return null;
+
+        // URL-decode the token (pipe | gets encoded as %7C in URL paths)
+        $token = urldecode($token);
+
+        // Try verifytoken first (web admin - handles Sanctum tokens)
         $userId = $this->verifytoken($token);
         if (!$userId) {
             // Fallback to verifyapptoken (mobile/app token)
