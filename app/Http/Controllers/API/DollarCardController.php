@@ -144,7 +144,7 @@ class DollarCardController extends Controller
                 $result = $provider->createVirtualCard($user->sudo_customer_id, 'USD', $fundingAmountUsd);
             } else {
                 if (empty($user->customer_id)) {
-                    throw new \Exception('Xixapay Customer ID not found. Please complete card registration.');
+                    throw new \Exception('Card registration not complete. Please complete identity verification first.');
                 }
                 $result = $provider->createVirtualCard($user->customer_id, 'USD', $fundingAmountUsd);
             }
@@ -196,7 +196,7 @@ class DollarCardController extends Controller
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCostNgn,
-                    'message' => "Created USD Virtual Card ({$providerName}) | Fees Included",
+                    'message' => "Created USD Virtual Card | Fees Included",
                     'oldbal' => $user->bal,
                     'newbal' => $user->bal - $totalCostNgn,
                     'habukhan_date' => $this->system_date(),
@@ -360,7 +360,7 @@ class DollarCardController extends Controller
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCostNgn,
-                    'message' => "Funded Virtual Card ({$providerName}) | Fees Included",
+                    'message' => "Funded USD Virtual Card | Fees Included",
                     'oldbal' => $user->bal,
                     'newbal' => $user->bal - $totalCostNgn,
                     'habukhan_date' => $this->system_date(),
@@ -434,7 +434,7 @@ class DollarCardController extends Controller
                 DB::table('message')->insert([
                     'username' => $user->username,
                     'amount' => $totalCreditNgn,
-                    'message' => "Withdrew from Virtual Card ({$providerName}) | Fees Deducted",
+                    'message' => "Withdrew from USD Virtual Card | Fees Deducted",
                     'oldbal' => $user->bal,
                     'newbal' => $user->bal + $totalCreditNgn,
                     'habukhan_date' => $this->system_date(),
@@ -527,7 +527,7 @@ class DollarCardController extends Controller
                     DB::table('message')->insert([
                         'username' => $user->username,
                         'amount' => $refundNgn,
-                        'message' => "Terminated Virtual Card ({$card->provider}) | Balance Refunded",
+                        'message' => "Terminated USD Virtual Card | Balance Refunded",
                         'oldbal' => $user->bal,
                         'newbal' => $user->bal + $refundNgn,
                         'habukhan_date' => $this->system_date(),
