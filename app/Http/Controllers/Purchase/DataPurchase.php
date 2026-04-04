@@ -16,12 +16,6 @@ class DataPurchase extends Controller
 
     public function BuyData(Request $request)
     {
-        // Basic logging to see if request reaches this point
-        \Log::info('🚨 DATA PURCHASE DEBUG - Request reached BuyData method');
-        \Log::info('🚨 DATA PURCHASE DEBUG - Request method: ' . $request->method());
-        \Log::info('🚨 DATA PURCHASE DEBUG - Request URL: ' . $request->url());
-        \Log::info('🚨 DATA PURCHASE DEBUG - Authorization header: ' . $request->header('Authorization'));
-
         // ── Universal input merger: handle GET+body, GET+query, POST+body ──
         if (empty($request->all())) {
             $rawBody = $request->getContent();
@@ -41,16 +35,9 @@ class DataPurchase extends Controller
 
         // check where the response coming from
         $explode_url = explode(',', config('app.habukhan_app_key'));
-        \Log::info('🚨 DATA PURCHASE DEBUG - Origin header: ' . $request->headers->get('origin'));
-        \Log::info('🚨 DATA PURCHASE DEBUG - HABUKHAN_APP_KEY: ' . config('app.habukhan_app_key'));
-        \Log::info('🚨 DATA PURCHASE DEBUG - Exploded HABUKHAN_APP_KEY: ' . json_encode($explode_url));
-        \Log::info('🚨 DATA PURCHASE DEBUG - Origin in array: ' . (in_array($request->headers->get('origin'), $explode_url) ? 'TRUE' : 'FALSE'));
 
         // Prioritize device key authentication for mobile apps
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
-            \Log::info('🚨 DATA PURCHASE DEBUG - Using device key authentication');
-            \Log::info('🚨 DATA PURCHASE DEBUG - Device key comparison: ' . config('app.habukhan_device_key') . ' == ' . $request->header('Authorization'));
-            \Log::info('🚨 DATA PURCHASE DEBUG - Comparison result: ' . (config('app.habukhan_device_key') == $request->header('Authorization') ? 'TRUE' : 'FALSE'));
 
             $validator = Validator::make($request->all(), [
                 'network' => 'required',
@@ -68,58 +55,21 @@ class DataPurchase extends Controller
                 $transid = $this->purchase_ref('DATA_');
             }
 
-            // Debug logging for mobile app data purchase
-            \Log::info('🚨 DATA PURCHASE DEBUG - Request received:', [
-                'user_id' => $request->user_id,
-                'pin' => $request->pin,
-                'pin_type' => gettype($request->pin),
-                'authorization' => $request->header('Authorization'),
-                'device_key' => config('app.habukhan_device_key')
-            ]);
-
             $verified_user_id = $this->verifyapptoken($request->user_id);
-            \Log::info('🚨 DATA PURCHASE DEBUG - verifyapptoken result:', [
-                'input_user_id' => $request->user_id,
-                'verified_user_id' => $verified_user_id,
-                'verified_user_id_type' => gettype($verified_user_id)
-            ]);
 
             if (DB::table('user')->where(['id' => $verified_user_id, 'status' => 1])->count() == 1) {
                 $d_token = DB::table('user')->where(['id' => $verified_user_id, 'status' => 1])->first();
 
-                \Log::info('🚨 DATA PURCHASE DEBUG - User found:', [
-                    'user_id' => $d_token->id,
-                    'username' => $d_token->username,
-                    'stored_pin' => $d_token->pin,
-                    'stored_pin_type' => gettype($d_token->pin),
-                    'sent_pin' => $request->pin,
-                    'sent_pin_type' => gettype($request->pin),
-                    'pin_match' => ($d_token->pin == $request->pin),
-                    'pin_strict_match' => ($d_token->pin === $request->pin)
-                ]);
-
                 // Verify PIN for mobile app
                 if (trim($d_token->pin) == trim($request->pin)) {
                     $accessToken = $d_token->apikey;
-                    \Log::info('🚨 DATA PURCHASE DEBUG - PIN validation successful');
                 } else {
-                    \Log::error('🚨 DATA PURCHASE DEBUG - PIN validation failed:', [
-                        'stored_pin' => $d_token->pin,
-                        'sent_pin' => $request->pin,
-                        'pin_match' => ($d_token->pin == $request->pin),
-                        'pin_strict_match' => ($d_token->pin === $request->pin)
-                    ]);
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Invalid Transaction Pin'
                     ])->setStatusCode(403);
                 }
             } else {
-                \Log::error('🚨 DATA PURCHASE DEBUG - User not found:', [
-                    'user_id' => $request->user_id,
-                    'verified_user_id' => $verified_user_id,
-                    'user_count' => DB::table('user')->where(['id' => $verified_user_id, 'status' => 1])->count()
-                ]);
                 $accessToken = 'null';
             }
         } else if ((!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url) || $request->headers->get('origin') === $request->getSchemeAndHttpHost()) && strpos($request->header('Authorization'), 'Token') === false) {
@@ -431,16 +381,13 @@ class DataPurchase extends Controller
                                                                                             $habukhanm = new DataSend();
                                                                                             $data_sel = DB::table('data_sel')->first();
                                                                                             $check_now = $data_sel->$vending;
-                                                                                            \Log::info('🚨 DATA VENDING DEBUG:', ['vending' => $vending, 'method' => $check_now, 'plan_id' => $request->data_plan]);
 
                                                                                             // UNIVERSAL SMART SWITCH ACTIVATION
                                                                                             $response = DataSend::SmartAttempt($check_now, $sending_data);
 
-                                                                                            \Log::info('🚨 DATA VENDING RESPONSE:', ['response' => $response]);
-
                                                                                             // Handle null/empty response from provider (timeout/failure)
                                                                                             if ($response === null || $response === '') {
-                                                                                                \Log::error('🚨 DATA VENDING ERROR: Provider returned null/empty response', [
+                                                                                                \Log::error('Data provider returned null/empty response', [
                                                                                                     'transid' => $transid,
                                                                                                     'vending' => $vending,
                                                                                                     'phone' => $phone

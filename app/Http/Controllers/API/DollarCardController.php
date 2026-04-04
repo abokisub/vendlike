@@ -66,9 +66,7 @@ class DollarCardController extends Controller
         }
 
         $type = strtoupper(trim($user->type ?? ''));
-        \Log::info("verifyAdminToken: userId=$userId, type=$type");
         if ($type !== 'ADMIN') {
-            \Log::warning("verifyAdminToken: user $userId is not ADMIN, type=$type");
             return null;
         }
 
@@ -781,7 +779,6 @@ class DollarCardController extends Controller
      */
     public function adminTerminateCard(Request $request, $cardId, $id)
     {
-        \Log::info("adminTerminateCard called: id_prefix=" . substr($id ?? '', 0, 20) . " cardId_prefix=" . substr($cardId ?? '', 0, 20));
         $userId = $this->verifyAdminToken($id);
         if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
@@ -835,7 +832,6 @@ class DollarCardController extends Controller
      */
     public function adminGetCardInfo(Request $request, $cardId, $id)
     {
-        \Log::info("adminGetCardInfo called: id_prefix=" . substr($id ?? '', 0, 20) . " cardId_prefix=" . substr($cardId ?? '', 0, 20));
         $userId = $this->verifyAdminToken($id);
         if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);

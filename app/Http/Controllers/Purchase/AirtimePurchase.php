@@ -17,15 +17,6 @@ class AirtimePurchase extends Controller
 
     public function BuyAirtime(Request $request)
     {
-        // DEBUG LOGGING
-        \Log::info("--- START BuyAirtime ---");
-        \Log::info("URL: " . $request->fullUrl());
-        \Log::info("Method: " . $request->method());
-        \Log::info("Content-Type: " . $request->header('Content-Type'));
-        \Log::info("Input: " . json_encode($request->all()));
-        \Log::info("Raw Body: " . $request->getContent());
-        \Log::info("Headers: " . json_encode($request->headers->all()));
-
         // ── Universal input merger: handle GET+body, GET+query, POST+body ──
         // Some clients (Adex) send GET with JSON body or form-encoded body — merge it in
         if (empty($request->all())) {
@@ -60,8 +51,6 @@ class AirtimePurchase extends Controller
                 'user_id' => 'required'
             ]);
             $system = "APP";
-            file_put_contents('debug_trace.txt', "Step 1: Start. ID: " . $request->user_id . " Amount: " . $request->amount . "\n", FILE_APPEND);
-
             // Professional Refactor: Use client-provided request-id for idempotency if available
             if ($request->has('request-id')) {
                 $transid = $request->input('request-id');
@@ -75,7 +64,6 @@ class AirtimePurchase extends Controller
                 $d_token = $check->first();
                 if (trim($d_token->pin) == trim($request->pin)) {
                     $accessToken = $d_token->apikey;
-                    file_put_contents('debug_trace.txt', "Step 2: Auth Success\n", FILE_APPEND);
                 } else {
                     return response()->json([
                         'status' => 'fail',
@@ -214,7 +202,6 @@ class AirtimePurchase extends Controller
 
                         // check if network exits before
                         if (DB::table('network')->where('plan_id', $network)->count() == 1) {
-                            file_put_contents('debug_trace.txt', "Step 3: Network Found: $network\n", FILE_APPEND);
                             //network details
                             $network_d = DB::table('network')->where('plan_id', $network)->first();
 
@@ -284,7 +271,6 @@ class AirtimePurchase extends Controller
                                         $habukhan_new_go = true;
 
                                         if ($habukhan_new_go == true) {
-                                            file_put_contents('debug_trace.txt', "Step 4: Limits Passed\n", FILE_APPEND);
 
                                             if ($plan_type == 'sns') {
                                                 $type = 'share';
@@ -308,7 +294,6 @@ class AirtimePurchase extends Controller
                                                         if ($discount->max_airtime >= $amount) {
                                                             if ($amount >= $discount->min_airtime) {
                                                                 if ($user->bal >= $discount_amount) {
-                                                                    file_put_contents('debug_trace.txt', "Step 5: Balance Sufficient\n", FILE_APPEND);
                                                                     $debit = $user->bal - $discount_amount;
                                                                     $refund = $debit + $discount_amount;
 
@@ -353,7 +338,6 @@ class AirtimePurchase extends Controller
                                                                     ];
                                                                     if (DB::table('user')->where(['id' => $user->id])->update(['bal' => $debit])) {
                                                                         DB::commit();
-                                                                        file_put_contents('debug_trace.txt', "Step 6: Debit Success\n", FILE_APPEND);
 
                                                                         if ($this->inserting_data('message', $trans_history) and $this->inserting_data('airtime', $airtime_history)) {
                                                                             // purchase data now
