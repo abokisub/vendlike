@@ -151,18 +151,41 @@ class DollarCardController extends Controller
 
             if (isset($result['status']) && $result['status'] === 'success') {
                 $cardData = $result['data'];
+
+                // ── Parse expiry — Xixapay returns "04/29", Sudo returns separate month/year ──
+                $expiryMonth = $cardData['expiry_month'] ?? null;
+                $expiryYear = $cardData['expiry_year'] ?? null;
+                if (!$expiryMonth && isset($cardData['expiry'])) {
+                    $parts = explode('/', $cardData['expiry']);
+                    $expiryMonth = $parts[0] ?? null;
+                    $expiryYear = isset($parts[1]) ? '20' . $parts[1] : null;
+                }
+
+                // ── Parse card number / masked PAN ──
+                $cardNumber = $cardData['card_number'] ?? null;
+                $maskedPan = $cardData['masked_pan'] ?? $cardData['pan'] ?? null;
+                if (!$maskedPan && $cardNumber) {
+                    // Mask the card number: show last 4 digits only
+                    $maskedPan = '•••• •••• •••• ' . substr($cardNumber, -4);
+                }
+                $maskedPan = $maskedPan ?? '•••• •••• •••• ••••';
+
+                // ── Parse last4 ──
+                $last4 = $cardData['last4'] ?? ($cardNumber ? substr($cardNumber, -4) : null);
+
                 DB::table('virtual_cards')->insert([
                     'user_id' => $user->id,
                     'provider' => $providerName,
                     'card_id' => $cardData['card_id'] ?? $cardData['id'],
                     'sudo_card_id' => ($providerName === 'sudo') ? ($cardData['card_id'] ?? $cardData['id']) : null,
                     'sudo_customer_id' => ($providerName === 'sudo') ? $user->sudo_customer_id : $user->customer_id,
-                    'masked_pan' => $cardData['masked_pan'] ?? $cardData['pan'] ?? '•••• •••• •••• ' . ($cardData['last4'] ?? '••••'),
+                    'masked_pan' => $maskedPan,
                     'brand' => $cardData['brand'] ?? 'Visa',
-                    'expiry_month' => $cardData['expiry_month'] ?? null,
-                    'expiry_year' => $cardData['expiry_year'] ?? null,
+                    'expiry_month' => $expiryMonth,
+                    'expiry_year' => $expiryYear,
                     'card_balance' => $fundingAmountUsd,
-                    'last4' => $cardData['last4'] ?? null,
+                    'last4' => $last4,
+                    'card_type' => 'USD',
                     'status' => 'active',
                     'full_response_json' => json_encode($result),
                     'created_at' => now(),
