@@ -34,6 +34,19 @@ class DollarCardController extends Controller
         // URL-decode the token (pipe | gets encoded as %7C in URL paths)
         $token = urldecode($token);
 
+        // Also try reading from Authorization header as fallback
+        $headerToken = request()->header('Authorization');
+        if ($headerToken) {
+            $headerToken = str_replace('Bearer ', '', $headerToken);
+            $headerUserId = $this->verifyapptoken($headerToken);
+            if ($headerUserId) {
+                $user = DB::table('user')->where('id', $headerUserId)->first();
+                if ($user && strtoupper(trim($user->type ?? '')) === 'ADMIN') {
+                    return $headerUserId;
+                }
+            }
+        }
+
         // Try verifytoken first (web admin - handles Sanctum tokens)
         $userId = $this->verifytoken($token);
         if (!$userId) {
@@ -725,10 +738,50 @@ class DollarCardController extends Controller
     }
 
     /**
+     * Admin: Change Card Status (freeze/unfreeze)
+     */
+    public function adminChangeCardStatus(Request $request, $cardId, $id)
+    {
+        $userId = $this->verifyAdminToken($id);
+        if (!$userId) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $card = DB::table('virtual_cards')->where('card_id', $cardId)->first();
+        if (!$card) {
+            return response()->json(['status' => 'error', 'message' => 'Card not found'], 404);
+        }
+
+        $newStatus = $request->status; // 'active', 'frozen'
+        if (!in_array($newStatus, ['active', 'frozen'])) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid status. Use active or frozen'], 400);
+        }
+
+        try {
+            // Only call provider API for Xixapay — Sudo is no longer active
+            if ($card->provider === 'xixapay') {
+                $provider = $this->getProvider($card->provider);
+                $result = $provider->changeCardStatus($card->card_id, $newStatus);
+                if ($result['status'] === 'success') {
+                    DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => $newStatus]);
+                    return response()->json(['status' => 'success', 'message' => 'Card ' . ($newStatus === 'frozen' ? 'frozen' : 'unfrozen/reactivated') . ' successfully']);
+                }
+            }
+            // For Sudo or provider failure — update locally
+            DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => $newStatus]);
+            return response()->json(['status' => 'success', 'message' => 'Card status updated to ' . $newStatus]);
+        } catch (\Exception $e) {
+            DB::table('virtual_cards')->where('card_id', $cardId)->update(['status' => $newStatus]);
+            return response()->json(['status' => 'success', 'message' => 'Card status updated locally']);
+        }
+    }
+
+    /**
      * Admin: Terminate Card
      */
-    public function adminTerminateCard(Request $request, $id, $cardId)
+    public function adminTerminateCard(Request $request, $cardId, $id)
     {
+        \Log::info("adminTerminateCard called: id_prefix=" . substr($id ?? '', 0, 20) . " cardId_prefix=" . substr($cardId ?? '', 0, 20));
         $userId = $this->verifyAdminToken($id);
         if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
@@ -766,7 +819,7 @@ class DollarCardController extends Controller
     /**
      * Admin: Delete Card Record
      */
-    public function adminDeleteCard(Request $request, $id, $cardId)
+    public function adminDeleteCard(Request $request, $cardId, $id)
     {
         $userId = $this->verifyAdminToken($id);
         if (!$userId) {
@@ -780,8 +833,9 @@ class DollarCardController extends Controller
     /**
      * Admin: Get Card Info
      */
-    public function adminGetCardInfo(Request $request, $id, $cardId)
+    public function adminGetCardInfo(Request $request, $cardId, $id)
     {
+        \Log::info("adminGetCardInfo called: id_prefix=" . substr($id ?? '', 0, 20) . " cardId_prefix=" . substr($cardId ?? '', 0, 20));
         $userId = $this->verifyAdminToken($id);
         if (!$userId) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);

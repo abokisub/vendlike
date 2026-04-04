@@ -82,17 +82,17 @@ class SudoService
             if ($response->successful()) {
                 $body = $response->json();
                 return [
-                    'success' => true,
+                    'status' => 'success',
                     'data' => $body['data'] ?? $body,
                     'customer_id' => $body['data']['_id'] ?? null,
                 ];
             }
 
             Log::error('Sudo createCustomer failed', ['status' => $response->status(), 'body' => $response->body()]);
-            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to create customer'];
+            return ['status' => 'error', 'message' => $response->json()['message'] ?? 'Failed to create customer'];
         } catch (\Exception $e) {
             Log::error('Sudo createCustomer exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -145,17 +145,17 @@ class SudoService
             if ($response->successful()) {
                 $body = $response->json();
                 Log::info('Sudo updateCustomer success', ['customerId' => $customerId]);
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
             $errMsg = $response->json()['message'] ?? 'Failed to update customer';
             if (is_array($errMsg))
                 $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to update customer';
             Log::error('Sudo updateCustomer failed', ['status' => $response->status(), 'body' => $response->body()]);
-            return ['success' => false, 'message' => $errMsg];
+            return ['status' => 'error', 'message' => $errMsg];
         } catch (\Exception $e) {
             Log::error('Sudo updateCustomer exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -170,14 +170,14 @@ class SudoService
 
             if ($response->successful()) {
                 $body = $response->json();
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
             Log::error('Sudo generateCustomerDocumentUrl failed', ['status' => $response->status(), 'body' => $response->body()]);
-            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to generate document URL'];
+            return ['status' => 'error', 'message' => $response->json()['message'] ?? 'Failed to generate document URL'];
         } catch (\Exception $e) {
             Log::error('Sudo generateCustomerDocumentUrl exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -209,7 +209,7 @@ class SudoService
                 $body = $response->json();
                 $card = $body['data'] ?? $body;
                 return [
-                    'success' => true,
+                    'status' => 'success',
                     'data' => $card,
                     'card_id' => $card['_id'] ?? null,
                     'masked_pan' => $card['maskedPan'] ?? null,
@@ -225,10 +225,10 @@ class SudoService
             $errMsg = $response->json()['message'] ?? 'Failed to create card';
             if (is_array($errMsg))
                 $errMsg = collect($errMsg)->pluck('constraints')->flatten()->first() ?? 'Failed to create card';
-            return ['success' => false, 'message' => $errMsg];
+            return ['status' => 'error', 'message' => $errMsg];
         } catch (\Exception $e) {
             Log::error('Sudo createVirtualCard exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -267,13 +267,13 @@ class SudoService
 
             if ($response->successful()) {
                 $body = $response->json();
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
-            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to update card status'];
+            return ['status' => 'error', 'message' => $response->json()['message'] ?? 'Failed to update card status'];
         } catch (\Exception $e) {
             Log::error('Sudo updateCardStatus exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -284,6 +284,7 @@ class SudoService
             'credit_account_id' => $this->debitAccountId, // required by Sudo to refund remaining balance
         ]);
     }
+
 
     public function freezeCard(string $cardId): array
     {
@@ -305,13 +306,13 @@ class SudoService
                 ]);
 
             if ($response->successful()) {
-                return ['success' => true, 'data' => $response->json()['data'] ?? $response->json()];
+                return ['status' => 'success', 'data' => $response->json()['data'] ?? $response->json()];
             }
 
-            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to change PIN'];
+            return ['status' => 'error', 'message' => $response->json()['message'] ?? 'Failed to change PIN'];
         } catch (\Exception $e) {
             Log::error('Sudo changeCardPin exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -334,13 +335,13 @@ class SudoService
             }
 
             if ($response->successful()) {
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
-            return ['success' => false, 'message' => $response->json()['message'] ?? 'Failed to get card details'];
+            return ['status' => 'error', 'message' => $response->json()['message'] ?? 'Failed to get card details'];
         } catch (\Exception $e) {
             Log::error('Sudo getCardDetails exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -355,13 +356,13 @@ class SudoService
 
             if ($response->successful()) {
                 $body = $response->json();
-                return ['success' => true, 'data' => $body['data'] ?? []];
+                return ['status' => 'success', 'data' => $body['data'] ?? []];
             }
 
-            return ['success' => false, 'message' => 'Failed to fetch cards'];
+            return ['status' => 'error', 'message' => 'Failed to fetch cards'];
         } catch (\Exception $e) {
             Log::error('Sudo getCards exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -372,13 +373,13 @@ class SudoService
                 ->get("{$this->apiUrl}/cards", ['page' => $page, 'limit' => $limit]);
 
             if ($response->successful()) {
-                return ['success' => true, 'data' => $response->json()['data'] ?? []];
+                return ['status' => 'success', 'data' => $response->json()['data'] ?? []];
             }
 
-            return ['success' => false, 'message' => 'Failed to fetch cards'];
+            return ['status' => 'error', 'message' => 'Failed to fetch cards'];
         } catch (\Exception $e) {
             Log::error('Sudo getAllCards exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -397,7 +398,7 @@ class SudoService
 
             if ($response->successful()) {
                 $body = $response->json();
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
             Log::error('Sudo fundCard failed', ['status' => $response->status(), 'body' => $response->body()]);
@@ -405,10 +406,10 @@ class SudoService
             if (is_array($errMsg)) {
                 $errMsg = collect($errMsg)->map(fn($e) => collect($e['constraints'] ?? [])->values()->first() ?? '')->filter()->first() ?? 'Failed to fund card';
             }
-            return ['success' => false, 'message' => $errMsg];
+            return ['status' => 'error', 'message' => $errMsg];
         } catch (\Exception $e) {
             Log::error('Sudo fundCard exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -431,7 +432,7 @@ class SudoService
 
             if ($response->successful()) {
                 $body = $response->json();
-                return ['success' => true, 'data' => $body['data'] ?? $body];
+                return ['status' => 'success', 'data' => $body['data'] ?? $body];
             }
 
             Log::error('Sudo withdrawFromCard failed', ['status' => $response->status(), 'body' => $response->body()]);
@@ -439,10 +440,10 @@ class SudoService
             if (is_array($errMsg)) {
                 $errMsg = collect($errMsg)->map(fn($e) => collect($e['constraints'] ?? [])->values()->first() ?? '')->filter()->first() ?? 'Failed to withdraw from card';
             }
-            return ['success' => false, 'message' => $errMsg];
+            return ['status' => 'error', 'message' => $errMsg];
         } catch (\Exception $e) {
             Log::error('Sudo withdrawFromCard exception: ' . $e->getMessage());
-            return ['success' => false, 'message' => $e->getMessage()];
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
@@ -1010,5 +1011,34 @@ class SudoService
             Log::error('Sudo digitalizeCard exception: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    public function handleWebhook($request)
+    {
+        Log::info('Sudo Webhook Received', ['payload' => $request->all()]);
+        // Implement logic to update card status or settle transactions if needed
+        return response()->json(['status' => 'success']);
+    }
+
+    // --- ALIASES FOR DOLLAR CARD CONTROLLER PARITY ---
+
+    public function fundVirtualCard(string $cardId, float $amount)
+    {
+        return $this->fundCard($cardId, $amount);
+    }
+
+    public function withdrawVirtualCard(string $cardId, float $amount)
+    {
+        return $this->withdrawFromCard($cardId, $amount);
+    }
+
+    public function terminateVirtualCard(string $cardId, string $reason = 'lost')
+    {
+        return $this->terminateCard($cardId, $reason);
+    }
+
+    public function getTransactions(string $cardId)
+    {
+        return $this->getCardTransactions($cardId);
     }
 }

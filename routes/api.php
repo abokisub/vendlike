@@ -225,6 +225,7 @@ Route::post('admin/dollar-card/settings/{id}/secure', [App\Http\Controllers\API\
 Route::get('admin/dollar-card/cards/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminGetAllCards']);
 Route::post('admin/dollar-card/terminate/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminTerminateCard']);
 Route::post('admin/dollar-card/delete/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminDeleteCard']);
+Route::post('admin/dollar-card/status/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminChangeCardStatus']);
 Route::get('admin/dollar-card/card-info/{cardId}/{id}/secure', [App\Http\Controllers\API\DollarCardController::class, 'adminGetCardInfo']);
 
 // New Admin Card Management Routes
