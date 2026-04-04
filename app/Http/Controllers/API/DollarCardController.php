@@ -554,18 +554,46 @@ class DollarCardController extends Controller
         if (!$userId)
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
+        $user = DB::table('user')->where('id', $userId)->first();
         $card = DB::table('virtual_cards')->where('user_id', $userId)->whereNotIn('status', ['terminated', 'canceled'])->first();
         if (!$card)
             return response()->json(['status' => 'success', 'data' => []]);
 
-        $provider = $this->getProvider($card->provider);
-        $result = $provider->getTransactions($card->card_id);
+        // Always include local message table transactions (card creation, funding, withdrawal)
+        $localTx = DB::table('message')
+            ->where('username', $user->username)
+            ->where('role', 'dollar_card')
+            ->orderBy('id', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($tx) {
+                return [
+                    'source' => 'local',
+                    'description' => $tx->message,
+                    'amount' => (float) $tx->amount,
+                    'currency' => 'NGN',
+                    'date' => $tx->habukhan_date,
+                    'status' => $tx->plan_status == 1 ? 'completed' : 'pending',
+                    'transid' => $tx->transid,
+                ];
+            })->toArray();
 
-        if (isset($result['status']) && $result['status'] === 'success') {
-            return response()->json(['status' => 'success', 'data' => $result['data']]);
+        // Try to get provider transactions too
+        try {
+            $provider = $this->getProvider($card->provider);
+            $result = $provider->getTransactions($card->card_id);
+            if (isset($result['status']) && $result['status'] === 'success' && !empty($result['data'])) {
+                $providerTx = array_map(function ($tx) {
+                    $tx['source'] = 'provider';
+                    return $tx;
+                }, $result['data']);
+                return response()->json(['status' => 'success', 'data' => array_merge($providerTx, $localTx)]);
+            }
+        } catch (\Exception $e) {
+            // Provider transactions unavailable — return local only
         }
 
-        return response()->json(['status' => 'error', 'message' => 'Failed to fetch transactions'], 400);
+        return response()->json(['status' => 'success', 'data' => $localTx]);
     }
 
     public function handleWebhook(Request $request)

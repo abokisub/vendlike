@@ -514,7 +514,13 @@ class XixapayProvider implements BankingProviderInterface
 
         $data = $response->json();
 
-        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === true))) {
+        if ($response->successful() && (isset($data['status']) && ($data['status'] === 'success' || $data['status'] === 'succcess' || $data['status'] === true))) {
+            // Normalize expiry_date to expiry_month/expiry_year for consistency
+            if (isset($data['data']['expiry_date']) && !isset($data['data']['expiry_month'])) {
+                $parts = explode('/', $data['data']['expiry_date']);
+                $data['data']['expiry_month'] = $parts[0] ?? null;
+                $data['data']['expiry_year'] = isset($parts[1]) ? '20' . $parts[1] : null;
+            }
             return [
                 'status' => 'success',
                 'message' => $data['message'] ?? 'Card details retrieved',
