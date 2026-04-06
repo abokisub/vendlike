@@ -12,6 +12,14 @@ class IUCvad extends Controller
 {
     public function IUC(Request $request)
     {
+        // ── Field name normalization ──
+        if (!$request->has('iuc') && $request->has('smart_card_number')) {
+            $request->merge(['iuc' => $request->smart_card_number]);
+        }
+        if (!$request->has('cable') && $request->has('cablename')) {
+            $request->merge(['cable' => $request->cablename]);
+        }
+
         if ((isset($request->iuc)) and (!empty($request->iuc))) {
             if ((isset($request->cable)) and (!empty($request->cable))) {
                 if (DB::table('cable_id')->where('plan_id', $request->cable)->count() == 1) {

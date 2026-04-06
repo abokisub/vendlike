@@ -7,10 +7,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 
-class  MeterVerify extends Controller
+class MeterVerify extends Controller
 {
     public function Check(Request $request)
     {
+        // ── Field name normalization ──
+        if (!$request->has('disco') && $request->has('disco_name')) {
+            $request->merge(['disco' => $request->disco_name]);
+        }
+        if (!$request->has('meter_type') && $request->has('MeterType')) {
+            $request->merge(['meter_type' => $request->MeterType]);
+        }
+
         if (!empty($request->disco)) {
             if (!empty($request->meter_number)) {
                 if (!empty($request->meter_type)) {

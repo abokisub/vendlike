@@ -14,7 +14,10 @@ use App\Services\ReceiptService;
 class DataPurchase extends Controller
 {
 
-    public function BuyData(Request $request)
+    /**
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function BuyData(Request $request): \Illuminate\Http\JsonResponse
     {
         // ── Universal input merger: handle GET+body, GET+query, POST+body ──
         if (empty($request->all())) {
@@ -25,7 +28,8 @@ class DataPurchase extends Controller
                     $request->merge($decoded);
                 } else {
                     parse_str($rawBody, $formData);
-                    if (!empty($formData)) $request->merge($formData);
+                    if (!empty($formData))
+                        $request->merge($formData);
                 }
             }
             if (!empty($request->query())) {
@@ -142,6 +146,9 @@ class DataPurchase extends Controller
             }
             if (!$request->has('data_plan') && $request->has('plan')) {
                 $request->merge(['data_plan' => $request->plan]);
+            }
+            if (!$request->has('phone') && $request->has('mobile_number')) {
+                $request->merge(['phone' => $request->mobile_number]);
             }
             if (!$request->has('bypass')) {
                 $request->merge(['bypass' => false]);
@@ -475,7 +482,7 @@ class DataPurchase extends Controller
                                                                                                     } else {
                                                                                                         $message = "You have been gifted " . $plan_d->plan_name . $plan_d->plan_size;
                                                                                                     }
-                                                                                                    $receiptService = new \App\Services\ReceiptService();
+                                                                                                    $receiptService = new ReceiptService();
                                                                                                     $successMessage = $receiptService->getFullMessage('DATA', [
                                                                                                         'plan' => $plan_d->plan_name . $plan_d->plan_size,
                                                                                                         'recipient' => $phone,

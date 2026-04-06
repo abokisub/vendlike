@@ -14,13 +14,21 @@ use App\Services\ReceiptService;
 
 class BillPurchase extends Controller
 {
-    public function Buy(Request $request)
+    /**
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function Buy(Request $request): \Illuminate\Http\JsonResponse
     {
         // Universal input merger for GET+body or GET+query
         if (empty($request->all())) {
             $raw = $request->getContent();
-            if (!empty($raw)) { $decoded = json_decode($raw, true); if (is_array($decoded)) $request->merge($decoded); }
-            if (!empty($request->query())) $request->merge($request->query());
+            if (!empty($raw)) {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded))
+                    $request->merge($decoded);
+            }
+            if (!empty($request->query()))
+                $request->merge($request->query());
         }
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
@@ -103,6 +111,18 @@ class BillPurchase extends Controller
             if (empty($request->all()) && !empty($request->query())) {
                 $request->merge($request->query());
             }
+
+            // ── Field name normalization ──
+            if (!$request->has('disco') && $request->has('disco_name')) {
+                $request->merge(['disco' => $request->disco_name]);
+            }
+            if (!$request->has('meter_type') && $request->has('MeterType')) {
+                $request->merge(['meter_type' => $request->MeterType]);
+            }
+            if (!$request->has('bypass')) {
+                $request->merge(['bypass' => false]);
+            }
+
             $validator = Validator::make($request->all(), [
                 'disco' => 'required',
                 'meter_number' => 'required',

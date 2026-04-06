@@ -20,8 +20,13 @@ class CablePurchase extends Controller
         // Universal input merger for GET+body or GET+query
         if (empty($request->all())) {
             $raw = $request->getContent();
-            if (!empty($raw)) { $decoded = json_decode($raw, true); if (is_array($decoded)) $request->merge($decoded); }
-            if (!empty($request->query())) $request->merge($request->query());
+            if (!empty($raw)) {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded))
+                    $request->merge($decoded);
+            }
+            if (!empty($request->query()))
+                $request->merge($request->query());
         }
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
@@ -102,11 +107,30 @@ class CablePurchase extends Controller
             if (empty($request->all()) && !empty($request->query())) {
                 $request->merge($request->query());
             }
+
+            // ── Field name normalization ──
+            if (!$request->has('cable') && $request->has('cablename')) {
+                $request->merge(['cable' => $request->cablename]);
+            }
+            if (!$request->has('cable_plan')) {
+                if ($request->has('cableplan')) {
+                    $request->merge(['cable_plan' => $request->cableplan]);
+                } elseif ($request->has('plan')) {
+                    $request->merge(['cable_plan' => $request->plan]);
+                }
+            }
+            if (!$request->has('iuc') && $request->has('smart_card_number')) {
+                $request->merge(['iuc' => $request->smart_card_number]);
+            }
+            if (!$request->has('bypass')) {
+                $request->merge(['bypass' => false]);
+            }
+
             $validator = Validator::make($request->all(), [
                 'cable' => 'required',
                 'iuc' => 'required',
                 'bypass' => 'required',
-                'plan' => 'required'
+                'cable_plan' => 'required'
             ]);
             $system = "API";
 

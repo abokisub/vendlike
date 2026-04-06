@@ -15,7 +15,10 @@ use App\Services\ReceiptService;
 class AirtimePurchase extends Controller
 {
 
-    public function BuyAirtime(Request $request)
+    /**
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function BuyAirtime(Request $request): \Illuminate\Http\JsonResponse
     {
         // ── Universal input merger: handle GET+body, GET+query, POST+body ──
         // Some clients (Adex) send GET with JSON body or form-encoded body — merge it in
@@ -39,7 +42,7 @@ class AirtimePurchase extends Controller
                 $request->merge($request->query());
             }
         }
-        
+
         $explode_url = explode(',', config('app.habukhan_app_key'));
         if (config('app.habukhan_device_key') == $request->header('Authorization')) {
             $validator = Validator::make($request->all(), [
@@ -134,6 +137,9 @@ class AirtimePurchase extends Controller
             // ── Field name normalization ──
             if (!$request->has('network') && $request->has('network_id')) {
                 $request->merge(['network' => $request->network_id]);
+            }
+            if (!$request->has('phone') && $request->has('mobile_number')) {
+                $request->merge(['phone' => $request->mobile_number]);
             }
             if (!$request->has('plan_type')) {
                 $request->merge(['plan_type' => 'VTU']);
