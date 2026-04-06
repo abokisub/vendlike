@@ -198,6 +198,17 @@ class AirtimePurchase extends Controller
                         // declare all variable
                         $network = $request->network;
                         $phone = $request->phone;
+
+                        // ── Intelligent Network Resolver (MSORG/Industry Standard Mapping) ──
+                        $msorg_network_map = [
+                            '2' => '3', // GLO
+                            '3' => '4', // 9MOBILE
+                            '4' => '2', // AIRTEL
+                        ];
+
+                        if (isset($msorg_network_map[$network]) && ($request->has('mobile_number') || $request->has('network_id'))) {
+                            $network = $msorg_network_map[$network];
+                        }
                         if ($request->bypass == true || $request->bypass == 'true') {
                             $bypass = true;
                         } else {

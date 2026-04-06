@@ -210,6 +210,27 @@ class DataPurchase extends Controller
                             $bypass = true;
 
                             $plan_id = $request->data_plan;
+
+                            // ── Intelligent Network Resolver (MSORG/Industry Standard Mapping) ──
+                            // Map MSORG standard IDs: 2=GLO, 3=9MOBILE, 4=AIRTEL back to Vendlike's internal IDs
+                            $msorg_network_map = [
+                                '2' => '3', // GLO
+                                '3' => '4', // 9MOBILE
+                                '4' => '2', // AIRTEL
+                            ];
+
+                            if (isset($msorg_network_map[$network])) {
+                                // Only override if the original ID + plan combination doesn't exist
+                                $check_original = DB::table('network')
+                                    ->join('data_plan', 'network.network', '=', 'data_plan.network')
+                                    ->where('network.plan_id', $network)
+                                    ->where('data_plan.plan_id', $plan_id)
+                                    ->count();
+
+                                if ($check_original == 0) {
+                                    $network = $msorg_network_map[$network];
+                                }
+                            }
                             // check if network exits before
                             if (DB::table('network')->where('plan_id', $network)->count() == 1) {
                                 //network details
