@@ -163,6 +163,7 @@ class DataPurchase extends Controller
                 'bypass' => 'required',
                 'data_plan' => 'required',
             ]);
+            $system = "API";
 
             // Flexible Auth Identification
             $d_token = $request->header('Authorization') ?? $request->token;
