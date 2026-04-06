@@ -147,6 +147,9 @@ class DataPurchase extends Controller
             if (!$request->has('data_plan') && $request->has('plan')) {
                 $request->merge(['data_plan' => $request->plan]);
             }
+            if (!$request->has('data_plan') && $request->has('dataplan')) {
+                $request->merge(['data_plan' => $request->dataplan]);
+            }
             if (!$request->has('phone') && $request->has('mobile_number')) {
                 $request->merge(['phone' => $request->mobile_number]);
             }
