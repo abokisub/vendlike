@@ -755,6 +755,7 @@ class DataPurchase extends Controller
                                         ])->setStatusCode(403);
                                     }
                                 } else {
+                                    \Log::info("Data Purchase Failed: Invalid Plan", ['sent' => $request->all(), 'parsed_network' => $network_d->network, 'parsed_plan' => $plan_id]);
                                     return response()->json([
                                         'status' => 'fail',
                                         'message' => 'Invalid Data Plan ID and Network'
