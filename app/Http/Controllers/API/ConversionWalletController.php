@@ -254,7 +254,8 @@ class ConversionWalletController extends Controller
 
                 \Log::info('Conversion wallet bank transfer response', ['data' => $result, 'transid' => $transid]);
 
-                $transferSuccess = isset($result['status']) && $result['status'] === 'success';
+                // Accept both 'success' and 'pending' as successful transfer initiation
+                $transferSuccess = isset($result['status']) && in_array($result['status'], ['success', 'pending']);
 
                 if (!$transferSuccess) {
                     // Refund on failure
