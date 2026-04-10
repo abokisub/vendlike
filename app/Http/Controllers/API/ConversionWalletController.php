@@ -239,54 +239,55 @@ class ConversionWalletController extends Controller
 
             $transid = 'CW_BT_' . time() . rand(1000, 9999);
 
-            // Call Xixapay transfer directly (same as main transfer flow)
-            $xixa = config('services.xixapay');
-            $xixaResponse = \Illuminate\Support\Facades\Http::timeout(180)->withHeaders([
-                'Authorization' => $xixa['authorization'],
-                'api-key' => $xixa['api_key'],
-                'Content-Type' => 'application/json',
-            ])->post('https://api.xixapay.com/api/v1/transfer', [
-                'businessId' => $xixa['business_id'],
-                'amount' => $amount,
-                'bank' => $request->bank_code,
-                'accountNumber' => $request->account_number,
-                'narration' => 'VendLike Conversion Wallet Withdrawal - ' . $transid,
-            ]);
+            // Use BankingService to route to the selected provider (PointWave or Xixapay)
+            $bankingService = app(\App\Services\Banking\BankingService::class);
+            
+            try {
+                $result = $bankingService->transfer([
+                    'amount' => $amount,
+                    'bank_code' => $request->bank_code,
+                    'account_number' => $request->account_number,
+                    'narration' => 'VendLike Conversion Wallet Withdrawal - ' . $transid,
+                ]);
 
-            $xixaData = $xixaResponse->json();
-            \Log::info('Conversion wallet bank transfer response', ['data' => $xixaData, 'transid' => $transid]);
+                \Log::info('Conversion wallet bank transfer response', ['data' => $result, 'transid' => $transid]);
 
-            $transferSuccess = $xixaResponse->successful() && isset($xixaData['status']) && $xixaData['status'] === 'success';
+                $transferSuccess = isset($result['status']) && $result['status'] === 'success';
 
-            if (!$transferSuccess) {
-
-                // Refund on failure
-                $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
-                $errMsg = $xixaData['message'] ?? 'Transfer failed. Please try again.';
-                if (str_contains(strtolower($errMsg), 'could not be processed')) {
-                    $errMsg = 'This bank is not supported for withdrawals via our payment provider. Please use GTBank, Access Bank, UBA, Kolomoni, or other major banks.';
+                if (!$transferSuccess) {
+                    // Refund on failure
+                    $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
+                    $errMsg = $result['message'] ?? 'Transfer failed. Please try again.';
+                    if (str_contains(strtolower($errMsg), 'could not be processed')) {
+                        $errMsg = 'This bank is not supported for withdrawals via our payment provider. Please use GTBank, Access Bank, UBA, Kolomoni, or other major banks.';
+                    }
+                    return response()->json(['status' => 'error', 'message' => $errMsg], 400);
                 }
-                return response()->json(['status' => 'error', 'message' => $errMsg], 400);
+
+                DB::table('message')->insert([
+                    'username'      => $user->username,
+                    'message'       => 'Conversion Wallet Bank Transfer to ' . $request->account_name . ' (' . $request->account_number . ')',
+                    'amount'        => $amount,
+                    'oldbal'        => $totalConversion,
+                    'newbal'        => max(0, $totalConversion - $amount),
+                    'habukhan_date' => Carbon::now(),
+                    'transid'       => $transid,
+                    'plan_status'   => 1,
+                    'role'          => 'debit',
+                ]);
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Transfer of ₦' . number_format($amount, 2) . ' initiated successfully.',
+                    'transid' => $transid,
+                    'amount'  => $amount,
+                ]);
+            } catch (\Exception $e) {
+                // Refund on exception
+                $a2cashWallet->credit($amount, 'Refund - transfer exception', 'refund', $transid . '_refund');
+                \Log::error('Conversion wallet transfer exception: ' . $e->getMessage());
+                return response()->json(['status' => 'error', 'message' => 'Transfer failed: ' . $e->getMessage()], 500);
             }
-
-            DB::table('message')->insert([
-                'username'      => $user->username,
-                'message'       => 'Conversion Wallet Bank Transfer to ' . $request->account_name . ' (' . $request->account_number . ')',
-                'amount'        => $amount,
-                'oldbal'        => $totalConversion,
-                'newbal'        => max(0, $totalConversion - $amount),
-                'habukhan_date' => Carbon::now(),
-                'transid'       => $transid,
-                'plan_status'   => 1,
-                'role'          => 'debit',
-            ]);
-
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'Transfer of ₦' . number_format($amount, 2) . ' initiated successfully.',
-                'transid' => $transid,
-                'amount'  => $amount,
-            ]);
         });
     }
 }
