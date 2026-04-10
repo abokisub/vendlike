@@ -228,14 +228,25 @@ class ConversionWalletController extends Controller
 
             // Deduct from A2Cash first, then GiftCard
             $remaining = $amount;
+            $debitedFromA2Cash = 0;
+            $debitedFromGiftCard = 0;
+            
             if ($a2cashWallet->balance > 0 && $remaining > 0) {
                 $debit = min($remaining, $a2cashWallet->balance);
                 $a2cashWallet->debit($debit, 'Bank withdrawal', 'bank_transfer', 'BT_' . time());
+                $debitedFromA2Cash = $debit;
                 $remaining -= $debit;
             }
             if ($remaining > 0 && $giftCardWallet->balance > 0) {
                 $giftCardWallet->debit($remaining, 'Bank withdrawal', 'bank_transfer', 'BT_' . time() . '_gc');
+                $debitedFromGiftCard = $remaining;
             }
+
+            \Log::info('Conversion wallet debited', [
+                'total_amount' => $amount,
+                'from_a2cash' => $debitedFromA2Cash,
+                'from_giftcard' => $debitedFromGiftCard,
+            ]);
 
             $transid = 'CW_BT_' . time() . rand(1000, 9999);
 
@@ -258,8 +269,17 @@ class ConversionWalletController extends Controller
                 $transferSuccess = isset($result['status']) && in_array($result['status'], ['success', 'pending']);
 
                 if (!$transferSuccess) {
-                    // Refund on failure
-                    $a2cashWallet->credit($amount, 'Refund - transfer failed', 'refund', $transid . '_refund');
+                    // Refund on failure — restore to both wallets proportionally
+                    if ($debitedFromA2Cash > 0) {
+                        $a2cashWallet->credit($debitedFromA2Cash, 'Refund - transfer failed', 'refund', $transid . '_refund_a2c');
+                    }
+                    if ($debitedFromGiftCard > 0) {
+                        $giftCardWallet->credit($debitedFromGiftCard, 'Refund - transfer failed', 'refund', $transid . '_refund_gc');
+                    }
+                    \Log::info('Conversion wallet refunded', [
+                        'refunded_a2cash' => $debitedFromA2Cash,
+                        'refunded_giftcard' => $debitedFromGiftCard,
+                    ]);
                     $errMsg = $result['message'] ?? 'Transfer failed. Please try again.';
                     if (str_contains(strtolower($errMsg), 'could not be processed')) {
                         $errMsg = 'This bank is not supported for withdrawals via our payment provider. Please use GTBank, Access Bank, UBA, Kolomoni, or other major banks.';
@@ -286,8 +306,13 @@ class ConversionWalletController extends Controller
                     'amount'  => $amount,
                 ]);
             } catch (\Exception $e) {
-                // Refund on exception
-                $a2cashWallet->credit($amount, 'Refund - transfer exception', 'refund', $transid . '_refund');
+                // Refund on exception — restore to both wallets proportionally
+                if ($debitedFromA2Cash > 0) {
+                    $a2cashWallet->credit($debitedFromA2Cash, 'Refund - transfer exception', 'refund', $transid . '_refund_exc_a2c');
+                }
+                if ($debitedFromGiftCard > 0) {
+                    $giftCardWallet->credit($debitedFromGiftCard, 'Refund - transfer exception', 'refund', $transid . '_refund_exc_gc');
+                }
                 \Log::error('Conversion wallet transfer exception: ' . $e->getMessage());
                 return response()->json(['status' => 'error', 'message' => 'Transfer failed: ' . $e->getMessage()], 500);
             }
