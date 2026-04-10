@@ -247,6 +247,8 @@ class ConversionWalletController extends Controller
                     'amount' => $amount,
                     'bank_code' => $request->bank_code,
                     'account_number' => $request->account_number,
+                    'account_name' => $request->account_name,
+                    'reference' => $transid,
                     'narration' => 'VendLike Conversion Wallet Withdrawal - ' . $transid,
                 ]);
 
