@@ -37,9 +37,9 @@ class BankingService
      */
     public function getActiveProvider(): BankingProviderInterface
     {
-        // Check settings for preferred provider
+        // Check settings for preferred provider (check both column names for compatibility)
         $settings = DB::table('settings')->first();
-        $preferredProvider = $settings->transfer_provider ?? 'pointwave';
+        $preferredProvider = $settings->primary_transfer_provider ?? $settings->transfer_provider ?? 'pointwave';
         
         // Allow Xixapay as alternative provider
         if ($preferredProvider === 'xixapay') {
