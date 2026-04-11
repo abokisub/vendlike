@@ -27,9 +27,18 @@
 </div>
 @endif
 
+@if(isset($pickup_name) || isset($pickup_address))
+<div style="margin-top:20px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:16px;">
+    <h4 style="color:#92400e; margin:0 0 8px; font-size:14px;">📍 Picked Up From</h4>
+    @if(isset($pickup_name))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $pickup_name }}</p>@endif
+    @if(isset($pickup_address))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $pickup_address }}</p>@endif
+    @if(isset($pickup_phone))<p style="margin:4px 0; font-size:13px; color:#444;">📞 {{ $pickup_phone }}</p>@endif
+</div>
+@endif
+
 @if(isset($delivery_address))
-<div style="margin-top:20px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:16px;">
-    <h4 style="color:#0369a1; margin:0 0 8px; font-size:14px;">📍 Delivering To</h4>
+<div style="margin-top:12px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:16px;">
+    <h4 style="color:#0369a1; margin:0 0 8px; font-size:14px;">🚚 Delivering To</h4>
     @if(isset($delivery_name))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_name }}</p>@endif
     <p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_address }}</p>
     @if(isset($delivery_state))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_state }}</p>@endif

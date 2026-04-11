@@ -25,6 +25,25 @@
 </div>
 @endif
 
+@if(isset($pickup_name) || isset($pickup_address))
+<div style="margin-top:20px; background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:16px;">
+    <h4 style="color:#92400e; margin:0 0 8px; font-size:14px;">📍 Picked Up From</h4>
+    @if(isset($pickup_name))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $pickup_name }}</p>@endif
+    @if(isset($pickup_address))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $pickup_address }}</p>@endif
+    @if(isset($pickup_phone))<p style="margin:4px 0; font-size:13px; color:#444;">📞 {{ $pickup_phone }}</p>@endif
+</div>
+@endif
+
+@if(isset($delivery_address))
+<div style="margin-top:12px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:16px;">
+    <h4 style="color:#0369a1; margin:0 0 8px; font-size:14px;">🚚 Delivered To</h4>
+    @if(isset($delivery_name))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_name }}</p>@endif
+    <p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_address }}</p>
+    @if(isset($delivery_state))<p style="margin:4px 0; font-size:13px; color:#444;">{{ $delivery_state }}</p>@endif
+    @if(isset($delivery_phone))<p style="margin:4px 0; font-size:13px; color:#444;">📞 {{ $delivery_phone }}</p>@endif
+</div>
+@endif
+
 <div style="margin-top:25px; text-align:center; background:#f0fdf4; border:2px solid #22c55e; border-radius:12px; padding:20px;">
     <p style="color:#166534; font-size:16px; font-weight:600; margin:0;">Thank you for shopping with {{ config('app.name') }}! 🎉</p>
     <p style="color:#888; font-size:13px; margin:8px 0 0;">We hope you enjoy your purchase.</p>
