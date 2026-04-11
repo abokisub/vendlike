@@ -12,38 +12,35 @@ class UpdateFaqsBranding extends Migration
      *
      * @return void
      */
-    public function run()
+    public function up()
     {
-        // Update Questions
-        DB::table('faqs')->where('question', 'like', '%VendLike%')->get()->each(function ($faq) {
-            $newQuestion = str_replace('VendLike', 'VendLike', $faq->question);
+        // Update Questions - Replace Kobopoint with VendLike
+        DB::table('faqs')->where('question', 'like', '%Kobopoint%')->orWhere('question', 'like', '%kobopoint%')->get()->each(function ($faq) {
+            $newQuestion = str_ireplace(['Kobopoint', 'kobopoint'], 'VendLike', $faq->question);
             DB::table('faqs')->where('id', $faq->id)->update(['question' => $newQuestion]);
         });
 
+        // Update Questions - Replace Aboki with VendLike AI
         DB::table('faqs')->where('question', 'like', '%Aboki%')->get()->each(function ($faq) {
-            $newQuestion = str_replace('Aboki', 'VendLike AI', $faq->question);
+            $newQuestion = str_ireplace('Aboki', 'VendLike AI', $faq->question);
             DB::table('faqs')->where('id', $faq->id)->update(['question' => $newQuestion]);
         });
 
-        // Update Answers
-        DB::table('faqs')->where('answer', 'like', '%VendLike%')->get()->each(function ($faq) {
-            $newAnswer = str_replace('VendLike', 'VendLike', $faq->answer);
+        // Update Answers - Replace Kobopoint with VendLike
+        DB::table('faqs')->where('answer', 'like', '%Kobopoint%')->orWhere('answer', 'like', '%kobopoint%')->get()->each(function ($faq) {
+            $newAnswer = str_ireplace(['Kobopoint', 'kobopoint'], 'VendLike', $faq->answer);
             DB::table('faqs')->where('id', $faq->id)->update(['answer' => $newAnswer]);
         });
 
+        // Update Answers - Replace Aboki with VendLike AI
         DB::table('faqs')->where('answer', 'like', '%Aboki%')->get()->each(function ($faq) {
-            $newAnswer = str_replace('Aboki', 'VendLike AI', $faq->answer);
+            $newAnswer = str_ireplace('Aboki', 'VendLike AI', $faq->answer);
             DB::table('faqs')->where('id', $faq->id)->update(['answer' => $newAnswer]);
         });
 
-        // Specific case-insensitive cleanup
-        DB::table('faqs')->where('question', 'like', '%vendlike%')->get()->each(function ($faq) {
-            $newQuestion = str_ireplace('vendlike', 'VendLike', $faq->question);
-            DB::table('faqs')->where('id', $faq->id)->update(['question' => $newQuestion]);
-        });
-
-        DB::table('faqs')->where('answer', 'like', '%vendlike%')->get()->each(function ($faq) {
-            $newAnswer = str_ireplace('vendlike', 'VendLike', $faq->answer);
+        // Update "Fund Wallet" to "Add Cash" to match app UI
+        DB::table('faqs')->where('answer', 'like', '%Fund Wallet%')->get()->each(function ($faq) {
+            $newAnswer = str_replace('Fund Wallet', 'Add Cash', $faq->answer);
             DB::table('faqs')->where('id', $faq->id)->update(['answer' => $newAnswer]);
         });
     }

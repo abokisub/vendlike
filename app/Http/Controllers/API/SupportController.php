@@ -206,7 +206,7 @@ class SupportController extends Controller
             return [
                 'message' => "Hi {$user->username} 👋 I'm VendLike Assistant, your FAQ helper.\n\nI can help explain how things work, fees, and limits. For account-specific issues or missing funds, please tap 'Contact Support'.\n\nHow can I help you today?",
                 'actions' => [
-                    ['label' => 'How to Fund Wallet', 'action' => 'faq_funding'],
+                    ['label' => 'How to Add Cash', 'action' => 'faq_funding'],
                     ['label' => 'Service Fees', 'action' => 'faq_fees'],
                     ['label' => 'Contact Support', 'action' => 'speak_human']
                 ]
@@ -216,7 +216,7 @@ class SupportController extends Controller
         // 2. Wallet Funding FAQs
         if (preg_match('/(fund|deposit|add money|top up|payment)/i', $message)) {
             return [
-                'message' => "💰 **How to Fund Your Wallet:**\n\n1. Go to Wallet section\n2. Click 'Fund Wallet'\n3. Choose payment method (Card/Bank Transfer)\n4. Enter amount and confirm\n5. Funds reflect instantly\n\n**Minimum:** ₦100\n**Maximum:** Based on your KYC level",
+                'message' => "💰 **How to Add Cash to Your Wallet:**\n\n1. Go to Wallet section\n2. Click 'Add Cash'\n3. Choose payment method (Card/Bank Transfer)\n4. Enter amount and confirm\n5. Funds reflect instantly\n\n**Minimum:** ₦100\n**Maximum:** Based on your KYC level",
                 'actions' => [
                     ['label' => 'KYC Limits', 'action' => 'faq_kyc'],
                     ['label' => 'Payment Issues?', 'action' => 'speak_human']

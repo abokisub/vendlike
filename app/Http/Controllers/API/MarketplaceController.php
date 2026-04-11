@@ -1694,6 +1694,14 @@ class MarketplaceController extends Controller
             $fez = new FezDeliveryService();
             $tracking = $fez->trackOrder($order->fez_order_no);
 
+            // Save pickup address from Fez response
+            if (isset($tracking['order']['senderName']) || isset($tracking['order']['senderAddress'])) {
+                $order->update([
+                    'pickup_name' => $tracking['order']['senderName'] ?? null,
+                    'pickup_address' => $tracking['order']['senderAddress'] ?? null,
+                ]);
+            }
+
             $timeline = [];
             if (isset($tracking['history']) && is_array($tracking['history'])) {
                 $timeline = array_map(function ($h) {
@@ -1721,6 +1729,8 @@ class MarketplaceController extends Controller
                     'order_status' => $order->status,
                     'delivery_status' => $tracking['order']['orderStatus'] ?? $order->delivery_status,
                     'fez_order_no' => $order->fez_order_no,
+                    'pickup_name' => $order->pickup_name,
+                    'pickup_address' => $order->pickup_address,
                     'timeline' => $timeline,
                 ],
             ]);
@@ -1768,6 +1778,14 @@ class MarketplaceController extends Controller
             $fez = new FezDeliveryService();
             $tracking = $fez->trackOrder($order->fez_order_no);
 
+            // Save pickup address from Fez response
+            if (isset($tracking['order']['senderName']) || isset($tracking['order']['senderAddress'])) {
+                $order->update([
+                    'pickup_name' => $tracking['order']['senderName'] ?? null,
+                    'pickup_address' => $tracking['order']['senderAddress'] ?? null,
+                ]);
+            }
+
             $timeline = [];
             if (isset($tracking['history']) && is_array($tracking['history'])) {
                 $timeline = array_map(function ($h) {
@@ -1785,6 +1803,8 @@ class MarketplaceController extends Controller
                     'order_status' => $order->status,
                     'delivery_status' => $tracking['order']['orderStatus'] ?? $order->delivery_status,
                     'fez_order_no' => $order->fez_order_no,
+                    'pickup_name' => $order->pickup_name,
+                    'pickup_address' => $order->pickup_address,
                     'timeline' => $timeline,
                 ],
             ]);
