@@ -1,16 +1,98 @@
-# Vendlike AI Training Data
+# Vendlike AI Training Data - TRANSACTIONAL MODE
 
 ## Overview
-This document contains the comprehensive training data for Vendlike AI assistant. The AI is designed to help users understand Vendlike services, fees, and general platform usage.
+This document contains the comprehensive training data for Vendlike AI assistant. The AI is designed to help users understand Vendlike services AND execute transactions on their behalf.
 
 ## AI Capabilities
+- ✅ **Execute airtime purchases** (extracts phone & amount from natural language)
+- ✅ **Check wallet balance** instantly
+- ✅ **Show transaction history**
 - ✅ Explain how services work
 - ✅ Provide fee information
 - ✅ Guide on account limits and KYC
 - ✅ Answer general questions
-- ❌ Cannot access user accounts
-- ❌ Cannot process transactions
-- ❌ Cannot resolve account-specific issues
+- ❌ Cannot access sensitive account data
+- ❌ Cannot modify account settings
+- ❌ Cannot resolve disputes (escalates to human support)
+
+## Transactional Features
+
+### 1. Airtime Purchase (LIVE)
+**User says:** "Buy 500 airtime for 08012345678"  
+**AI does:** Extracts phone (08012345678) and amount (500), executes purchase immediately
+
+**Supported patterns:**
+- "Buy ₦500 airtime for 08012345678"
+- "Purchase airtime 1000 for 07012345678"
+- "Send 200 airtime to 09012345678"
+- "Get airtime for 08012345678 amount 500"
+
+**Smart extraction:**
+- Phone: Detects Nigerian format (0701234567 - 0909999999)
+- Amount: Extracts reasonable amounts (₦50 - ₦50,000)
+- Network: Auto-detects from phone prefix
+
+**Response:**
+```
+✅ Airtime purchase successful!
+
+📱 Phone: 08012345678
+💰 Amount: ₦500.00
+🎯 Status: Delivered
+
+Anything else I can help with?
+```
+
+### 2. Balance Check (LIVE)
+**User says:** "Check my balance"  
+**AI does:** Shows current wallet balance instantly
+
+**Supported patterns:**
+- "Check my balance"
+- "What is my wallet balance"
+- "Show balance"
+- "How much do I have"
+
+**Response:**
+```
+💰 Your Wallet Balance:
+
+₦5,000.00
+
+What would you like to do?
+```
+
+### 3. Transaction History (LIVE)
+**User says:** "Show my transactions"  
+**AI does:** Displays last 5 transactions with status
+
+**Supported patterns:**
+- "Show my transactions"
+- "View transaction history"
+- "My recent purchases"
+- "Transaction history"
+
+**Response:**
+```
+📋 Your Recent Transactions:
+
+✅ Airtime Purchase - 08012345678
+   ₦500.00 - Apr 16, 2026
+
+✅ Data Bundle - 07012345678
+   ₦1,000.00 - Apr 15, 2026
+
+⏳ Marketplace Order - MP_001
+   ₦5,000.00 - Apr 14, 2026
+
+Need anything else?
+```
+
+### 4. Data Purchase (COMING SOON)
+**User says:** "Buy 2GB data for 08012345678"  
+**AI does:** Will extract phone and data size, execute purchase
+
+**Currently:** AI acknowledges intent and guides user to manual process
 
 ## Service Categories
 

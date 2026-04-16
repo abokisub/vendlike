@@ -11,8 +11,8 @@ use Carbon\Carbon;
 class SupportController extends Controller
 {
     /**
-     * VendLike AI Chat Interface - FAQ ONLY MODE
-     * AI acts as a guide, not a support agent
+     * VendLike AI Chat Interface - TRANSACTIONAL MODE
+     * AI can execute purchases and perform actions on behalf of users
      */
     public function chatVendLike(Request $request)
     {
@@ -47,8 +47,8 @@ class SupportController extends Controller
             return $this->handleHumanHandoff($user, $ticket, $messageText);
         }
 
-        // 5. Process as FAQ (AI Guide Mode)
-        $botResponse = $this->processFAQResponse($message, $user, $ticket->id);
+        // 5. Process as TRANSACTIONAL AI (can execute purchases)
+        $botResponse = $this->processTransactionalAI($message, $messageText, $user, $ticket->id, $request);
 
         // 6. Save Bot Response
         $this->saveMessage($ticket->id, 'bot', null, $botResponse['message']);
@@ -60,7 +60,9 @@ class SupportController extends Controller
             'conversation_id' => $ticket->id,
             'handler' => 'ai',
             'chat_locked' => false,
-            'actions' => $botResponse['actions'] ?? []
+            'actions' => $botResponse['actions'] ?? [],
+            'transaction_executed' => $botResponse['transaction_executed'] ?? false,
+            'transaction_data' => $botResponse['transaction_data'] ?? null
         ]);
     }
     public function createTicket(Request $request)
@@ -196,6 +198,187 @@ class SupportController extends Controller
     }
 
     /**
+     * Process Transactional AI - Can execute purchases and actions
+     * Detects purchase intent and executes transactions
+     */
+    private function processTransactionalAI($message, $originalMessage, $user, $ticketId, $request)
+    {
+        // Extract phone numbers and amounts from message
+        $phonePattern = '/\b(0[7-9][0-1]\d{8})\b/';
+        $amountPattern = '/\b(\d{2,6})\b/';
+        
+        preg_match($phonePattern, $originalMessage, $phoneMatches);
+        preg_match_all($amountPattern, $originalMessage, $amountMatches);
+        
+        $phone = $phoneMatches[1] ?? null;
+        $amount = null;
+        
+        // Get the most reasonable amount (between 50 and 50000)
+        if (!empty($amountMatches[1])) {
+            foreach ($amountMatches[1] as $possibleAmount) {
+                $amt = (int)$possibleAmount;
+                if ($amt >= 50 && $amt <= 50000) {
+                    $amount = $amt;
+                    break;
+                }
+            }
+        }
+
+        // 1. AIRTIME PURCHASE INTENT
+        if (preg_match('/(buy|purchase|get|send|recharge|load).*airtime/i', $message) || 
+            preg_match('/airtime.*(buy|purchase|get|send|for)/i', $message)) {
+            
+            if (!$phone || !$amount) {
+                return [
+                    'message' => "📱 I can buy airtime for you!\n\nPlease provide:\n• Phone number (e.g., 08012345678)\n• Amount (e.g., ₦100)\n\nExample: \"Buy ₦500 airtime for 08012345678\"",
+                    'actions' => [
+                        ['label' => 'Example', 'action' => 'example_airtime']
+                    ]
+                ];
+            }
+            
+            // Execute airtime purchase
+            try {
+                $purchaseController = new \App\Http\Controllers\Purchase\AirtimePurchase();
+                $purchaseRequest = new Request([
+                    'phone' => $phone,
+                    'amount' => $amount,
+                    'network' => 'auto' // Auto-detect from prefix
+                ]);
+                $purchaseRequest->setUserResolver(function () use ($user) {
+                    return $user;
+                });
+                
+                $result = $purchaseController->Buy($purchaseRequest);
+                $resultData = $result->getData();
+                
+                if ($resultData->status === 'success') {
+                    return [
+                        'message' => "✅ Airtime purchase successful!\n\n📱 Phone: {$phone}\n💰 Amount: ₦" . number_format($amount, 2) . "\n🎯 Status: Delivered\n\nAnything else I can help with?",
+                        'transaction_executed' => true,
+                        'transaction_data' => [
+                            'type' => 'airtime',
+                            'phone' => $phone,
+                            'amount' => $amount,
+                            'reference' => $resultData->reference ?? null
+                        ],
+                        'actions' => [
+                            ['label' => 'Buy More Airtime', 'action' => 'buy_airtime'],
+                            ['label' => 'Buy Data', 'action' => 'buy_data']
+                        ]
+                    ];
+                } else {
+                    return [
+                        'message' => "❌ Airtime purchase failed: " . ($resultData->message ?? 'Unknown error') . "\n\nPlease check your wallet balance or try again.",
+                        'actions' => [
+                            ['label' => 'Check Balance', 'action' => 'check_balance'],
+                            ['label' => 'Contact Support', 'action' => 'speak_human']
+                        ]
+                    ];
+                }
+            } catch (\Exception $e) {
+                \Log::error('AI Airtime Purchase Failed', ['error' => $e->getMessage(), 'user' => $user->id]);
+                return [
+                    'message' => "❌ Sorry, I couldn't complete the airtime purchase. Error: " . $e->getMessage() . "\n\nPlease try again or contact support.",
+                    'actions' => [
+                        ['label' => 'Try Again', 'action' => 'buy_airtime'],
+                        ['label' => 'Contact Support', 'action' => 'speak_human']
+                    ]
+                ];
+            }
+        }
+
+        // 2. DATA PURCHASE INTENT
+        if (preg_match('/(buy|purchase|get|send).*data/i', $message) || 
+            preg_match('/data.*(buy|purchase|get|send|for)/i', $message)) {
+            
+            if (!$phone) {
+                return [
+                    'message' => "📶 I can buy data for you!\n\nPlease provide:\n• Phone number (e.g., 08012345678)\n• Data plan (e.g., 1GB, 2GB, 5GB)\n\nExample: \"Buy 2GB data for 08012345678\"",
+                    'actions' => [
+                        ['label' => 'View Data Plans', 'action' => 'view_data_plans']
+                    ]
+                ];
+            }
+            
+            // Extract data amount (1GB, 2GB, etc.)
+            $dataPattern = '/(\d+)\s*(gb|mb)/i';
+            preg_match($dataPattern, $originalMessage, $dataMatches);
+            
+            if (empty($dataMatches)) {
+                return [
+                    'message' => "📶 Please specify the data plan you want.\n\nAvailable plans:\n• 1GB - ₦250\n• 2GB - ₦500\n• 5GB - ₦1,200\n• 10GB - ₦2,400\n\nExample: \"Buy 2GB data for {$phone}\"",
+                    'actions' => [
+                        ['label' => 'View All Plans', 'action' => 'view_data_plans']
+                    ]
+                ];
+            }
+            
+            $dataSize = $dataMatches[1] . $dataMatches[2];
+            
+            return [
+                'message' => "📶 Data purchase feature coming soon!\n\nFor now, please use:\nServices > Data > Select Plan\n\nOr I can guide you through the process?",
+                'actions' => [
+                    ['label' => 'Guide Me', 'action' => 'faq_data'],
+                    ['label' => 'Buy Airtime Instead', 'action' => 'buy_airtime']
+                ]
+            ];
+        }
+
+        // 3. BALANCE CHECK INTENT
+        if (preg_match('/(check|show|what|my).*(balance|wallet)/i', $message) || 
+            preg_match('/(balance|wallet).*(check|show|what)/i', $message)) {
+            
+            $balance = $user->bal ?? 0;
+            return [
+                'message' => "💰 Your Wallet Balance:\n\n₦" . number_format($balance, 2) . "\n\nWhat would you like to do?",
+                'actions' => [
+                    ['label' => 'Fund Wallet', 'action' => 'fund_wallet'],
+                    ['label' => 'Buy Airtime', 'action' => 'buy_airtime'],
+                    ['label' => 'Buy Data', 'action' => 'buy_data']
+                ]
+            ];
+        }
+
+        // 4. TRANSACTION HISTORY INTENT
+        if (preg_match('/(show|view|check|my).*(transaction|history|purchases)/i', $message)) {
+            $recentTransactions = DB::table('message')
+                ->where('username', $user->username)
+                ->orderBy('habukhan_date', 'desc')
+                ->limit(5)
+                ->get(['message', 'amount', 'habukhan_date', 'plan_status']);
+            
+            if ($recentTransactions->isEmpty()) {
+                return [
+                    'message' => "📋 No recent transactions found.\n\nStart using Vendlike services to see your transaction history here!",
+                    'actions' => [
+                        ['label' => 'Buy Airtime', 'action' => 'buy_airtime'],
+                        ['label' => 'Buy Data', 'action' => 'buy_data']
+                    ]
+                ];
+            }
+            
+            $historyText = "📋 Your Recent Transactions:\n\n";
+            foreach ($recentTransactions as $txn) {
+                $status = $txn->plan_status == 1 ? '✅' : ($txn->plan_status == 2 ? '❌' : '⏳');
+                $historyText .= "{$status} " . substr($txn->message, 0, 50) . "...\n";
+                $historyText .= "   ₦" . number_format($txn->amount, 2) . " - " . date('M d, Y', strtotime($txn->habukhan_date)) . "\n\n";
+            }
+            
+            return [
+                'message' => $historyText . "Need anything else?",
+                'actions' => [
+                    ['label' => 'Buy Airtime', 'action' => 'buy_airtime'],
+                    ['label' => 'Check Balance', 'action' => 'check_balance']
+                ]
+            ];
+        }
+
+        // If no transactional intent detected, fall back to FAQ mode
+        return $this->processFAQResponse($message, $user, $ticketId);
+    }
+
+    /**
      * Process FAQ Response - Enhanced AI with comprehensive Vendlike knowledge
      * Trained on all services: Airtime, Data, Bills, A2Cash, Gift Cards, Marketplace, Transfers
      */
@@ -204,10 +387,10 @@ class SupportController extends Controller
         // 1. Greetings
         if (preg_match('/^(hi|hello|hey|greetings|good morning|good afternoon|good evening|welcome)/i', $message)) {
             return [
-                'message' => "Hi {$user->username} 👋 Welcome to Vendlike!\n\nI'm your AI assistant, here to help you understand our services, fees, and how to use the platform.\n\n**What I can help with:**\n• How to use services\n• Fees and charges\n• Account limits\n• General questions\n\n**For account issues:** Please contact our support team.\n\nWhat would you like to know?",
+                'message' => "Hi {$user->username} 👋 Welcome to Vendlike!\n\nI'm your AI assistant. I can help you:\n\n✅ **Buy airtime & data** (just tell me!)\n✅ Check your balance\n✅ View transaction history\n✅ Answer questions about services\n✅ Guide you through features\n\n**Try saying:**\n• \"Buy ₦500 airtime for 08012345678\"\n• \"Check my balance\"\n• \"Show my transactions\"\n\nWhat can I do for you?",
                 'actions' => [
-                    ['label' => 'Fund Wallet', 'action' => 'faq_funding'],
-                    ['label' => 'Buy Airtime/Data', 'action' => 'faq_airtime'],
+                    ['label' => 'Check Balance', 'action' => 'check_balance'],
+                    ['label' => 'Buy Airtime', 'action' => 'buy_airtime'],
                     ['label' => 'Service Fees', 'action' => 'faq_fees'],
                     ['label' => 'Contact Support', 'action' => 'speak_human']
                 ]
