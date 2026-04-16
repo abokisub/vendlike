@@ -202,8 +202,73 @@ php artisan route:clear
 - ✅ Model updated
 - ✅ Backend API updated
 - ✅ Frontend admin panel updated
+- ✅ Vendor email notifications added
 - ⏳ Migration needs to run on production
 - ⏳ FEZ integration needs to use pickup address in order creation
 - ⏳ Testing required
+
+## Vendor Email Notifications
+
+Vendors now receive email notifications at three key stages:
+
+### 1. New Order (Order Confirmed/Paid)
+**Template**: `resources/views/email/vendor_new_order.blade.php`
+**Trigger**: When customer payment is confirmed
+**Purpose**: Notify vendor to prepare items for FEZ pickup
+**Contains**:
+- Order reference
+- List of items to prepare (with quantities, sizes, colors)
+- Vendor's pickup address
+- Customer delivery details
+- Action required message
+
+### 2. Order Shipped (FEZ Picked Up)
+**Template**: `resources/views/email/vendor_order_shipped.blade.php`
+**Trigger**: When admin marks order as "shipped"
+**Purpose**: Confirm FEZ has collected the items
+**Contains**:
+- Order reference
+- Tracking number (if available)
+- List of items shipped
+- Pickup date/time
+- Transit status message
+
+### 3. Order Delivered
+**Template**: `resources/views/email/vendor_order_delivered.blade.php`
+**Trigger**: When admin marks order as "delivered"
+**Purpose**: Confirm successful delivery to customer
+**Contains**:
+- Order reference
+- Delivery date/time
+- List of items delivered
+- Customer name and location
+- Success/thank you message
+
+### Email Notification Flow
+
+```
+Customer Places Order → Payment Confirmed
+    ↓
+    ├─→ Customer: Order Confirmed Email (with invoice PDF)
+    ├─→ Admin: Push Notification
+    └─→ Vendor: New Order Email ✅ (prepare for pickup)
+
+Admin Marks as "Shipped" (FEZ picked up)
+    ↓
+    ├─→ Customer: Order Shipped Email (with tracking)
+    └─→ Vendor: Order Shipped Email ✅ (items in transit)
+
+Admin Marks as "Delivered"
+    ↓
+    ├─→ Customer: Order Delivered Email
+    └─→ Vendor: Order Delivered Email ✅ (order complete)
+```
+
+### Important Notes
+
+- Vendors must have a valid email address in their profile to receive notifications
+- If an order contains products from multiple vendors, each vendor receives their own email with only their items
+- Email sending is non-blocking (wrapped in try-catch) to prevent order processing failures
+- All vendor emails are logged for debugging purposes
 
 **Last Updated**: April 16, 2026

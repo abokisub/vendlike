@@ -458,6 +458,44 @@ class MarketplaceController extends Controller
                     ]);
                     $attachment = \App\Services\InvoiceService::generatePdf('MARKETPLACE', $pdfData);
                     \App\Http\Controllers\MailController::send_mail($emailData, 'email.order_shipped', $attachment);
+
+                    // ✅ Notify vendors that items were picked up
+                    $vendorIds = $items->pluck('product_id')->map(function ($productId) {
+                        $product = MarketplaceProduct::find($productId);
+                        return $product ? $product->vendor_id : null;
+                    })->filter()->unique();
+
+                    foreach ($vendorIds as $vendorId) {
+                        $vendor = MarketplaceVendor::find($vendorId);
+                        if ($vendor && !empty($vendor->email)) {
+                            $vendorItems = $items->filter(function ($item) use ($vendorId) {
+                                $product = MarketplaceProduct::find($item->product_id);
+                                return $product && $product->vendor_id == $vendorId;
+                            });
+
+                            $vendorEmailItems = [];
+                            foreach ($vendorItems as $item) {
+                                $vendorEmailItems[] = [
+                                    'name' => $item->product_name,
+                                    'quantity' => $item->quantity,
+                                ];
+                            }
+
+                            $vendorEmailData = [
+                                'email' => $vendor->email,
+                                'vendor_name' => $vendor->name,
+                                'business_name' => $vendor->business_name,
+                                'title' => '🚚 Order Picked Up - ' . $order->reference . ' | ' . config('app.name'),
+                                'reference' => $order->reference,
+                                'items' => $vendorEmailItems,
+                                'tracking_number' => $order->tracking_number,
+                                'date' => now()->format('d M Y, h:i A'),
+                                'message' => 'FEZ Delivery has picked up your items and they are now in transit to the customer.',
+                            ];
+                            \App\Http\Controllers\MailController::send_mail($vendorEmailData, 'email.vendor_order_shipped');
+                        }
+                    }
+
                 } elseif ($request->status === 'delivered') {
                     $emailData = [
                         'email' => $user->email,
@@ -476,6 +514,44 @@ class MarketplaceController extends Controller
                         'date' => now()->format('d M Y, h:i A'),
                     ];
                     \App\Http\Controllers\MailController::send_mail($emailData, 'email.order_delivered');
+
+                    // ✅ Notify vendors that order was delivered
+                    $vendorIds = $items->pluck('product_id')->map(function ($productId) {
+                        $product = MarketplaceProduct::find($productId);
+                        return $product ? $product->vendor_id : null;
+                    })->filter()->unique();
+
+                    foreach ($vendorIds as $vendorId) {
+                        $vendor = MarketplaceVendor::find($vendorId);
+                        if ($vendor && !empty($vendor->email)) {
+                            $vendorItems = $items->filter(function ($item) use ($vendorId) {
+                                $product = MarketplaceProduct::find($item->product_id);
+                                return $product && $product->vendor_id == $vendorId;
+                            });
+
+                            $vendorEmailItems = [];
+                            foreach ($vendorItems as $item) {
+                                $vendorEmailItems[] = [
+                                    'name' => $item->product_name,
+                                    'quantity' => $item->quantity,
+                                ];
+                            }
+
+                            $vendorEmailData = [
+                                'email' => $vendor->email,
+                                'vendor_name' => $vendor->name,
+                                'business_name' => $vendor->business_name,
+                                'title' => '✅ Order Delivered - ' . $order->reference . ' | ' . config('app.name'),
+                                'reference' => $order->reference,
+                                'items' => $vendorEmailItems,
+                                'delivery_name' => $order->delivery_name,
+                                'delivery_state' => $order->delivery_state,
+                                'date' => now()->format('d M Y, h:i A'),
+                                'message' => 'Your items have been successfully delivered to the customer. Thank you for your service!',
+                            ];
+                            \App\Http\Controllers\MailController::send_mail($vendorEmailData, 'email.vendor_order_delivered');
+                        }
+                    }
                 }
             }
         } catch (\Exception $e) {
@@ -2224,6 +2300,53 @@ class MarketplaceController extends Controller
             }
         } catch (\Exception $e) {
             Log::error('Marketplace order confirmation email failed', ['error' => $e->getMessage()]);
+        }
+
+        // ✅ Notify vendors about new order (for pickup preparation)
+        try {
+            $vendorIds = $items->pluck('product_id')->map(function ($productId) {
+                $product = MarketplaceProduct::find($productId);
+                return $product ? $product->vendor_id : null;
+            })->filter()->unique();
+
+            foreach ($vendorIds as $vendorId) {
+                $vendor = MarketplaceVendor::find($vendorId);
+                if ($vendor && !empty($vendor->email)) {
+                    $vendorItems = $items->filter(function ($item) use ($vendorId) {
+                        $product = MarketplaceProduct::find($item->product_id);
+                        return $product && $product->vendor_id == $vendorId;
+                    });
+
+                    $vendorEmailItems = [];
+                    foreach ($vendorItems as $item) {
+                        $vendorEmailItems[] = [
+                            'name' => $item->product_name,
+                            'quantity' => $item->quantity,
+                            'size' => $item->size ?? null,
+                            'color' => $item->color ?? null,
+                        ];
+                    }
+
+                    $vendorEmailData = [
+                        'email' => $vendor->email,
+                        'vendor_name' => $vendor->name,
+                        'business_name' => $vendor->business_name,
+                        'title' => '📦 New Order for Pickup - ' . $order->reference . ' | ' . config('app.name'),
+                        'reference' => $order->reference,
+                        'items' => $vendorEmailItems,
+                        'pickup_address' => $vendor->pickup_address,
+                        'pickup_phone' => $vendor->pickup_phone ?? $vendor->phone,
+                        'delivery_name' => $order->delivery_name,
+                        'delivery_address' => $order->delivery_address,
+                        'delivery_state' => $order->delivery_state,
+                        'date' => now()->format('d M Y, h:i A'),
+                        'message' => 'FEZ Delivery will pick up these items from your location soon. Please prepare the items for pickup.',
+                    ];
+                    \App\Http\Controllers\MailController::send_mail($vendorEmailData, 'email.vendor_new_order');
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Vendor order notification email failed', ['error' => $e->getMessage()]);
         }
     }
 
