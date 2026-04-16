@@ -10,6 +10,7 @@ class MarketplaceVendor extends Model
 
     protected $fillable = [
         'name', 'business_name', 'phone', 'email', 'description', 'is_active',
+        'pickup_address', 'pickup_city', 'pickup_state', 'pickup_phone',
     ];
 
     protected $casts = [

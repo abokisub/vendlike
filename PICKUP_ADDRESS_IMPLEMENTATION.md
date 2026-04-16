@@ -1,219 +1,209 @@
-# Pickup Address Implementation for Marketplace Orders
+# Vendor Pickup Address Implementation
 
 ## Overview
-Added support for storing and displaying pickup/sender address information from Fez Delivery API.
-
----
+Every vendor registered on Vendlike now has a pickup address that will be included in the FEZ Delivery API payload when orders are placed. This ensures FEZ knows where to collect items from each vendor for delivery to customers.
 
 ## Changes Made
 
 ### 1. Database Migration
-**File**: `database/migrations/2026_04_11_000001_add_pickup_address_to_marketplace_orders.php`
+**File**: `database/migrations/2026_04_16_172415_add_pickup_address_to_marketplace_vendors_table.php`
 
-Added 3 new columns to `marketplace_orders` table:
-- `pickup_name` VARCHAR(255) - Sender/warehouse name
-- `pickup_address` TEXT - Full pickup address
-- `pickup_phone` VARCHAR(20) - Pickup contact number
+Added the following fields to `marketplace_vendors` table:
+- `pickup_address` (text, nullable) - Full pickup address
+- `pickup_city` (string, nullable) - Pickup city
+- `pickup_state` (string, nullable) - Pickup state (required for FEZ)
+- `pickup_phone` (string, nullable) - Contact phone for pickup coordination
 
 ### 2. Model Update
-**File**: `app/Models/MarketplaceOrder.php`
+**File**: `app/Models/MarketplaceVendor.php`
 
-Added new fields to `$fillable` array:
+Updated `$fillable` array to include:
 ```php
-'pickup_name', 'pickup_address', 'pickup_phone'
+'pickup_address', 'pickup_city', 'pickup_state', 'pickup_phone'
 ```
 
-### 3. Controller Updates
+### 3. Backend API Updates
 **File**: `app/Http/Controllers/API/MarketplaceController.php`
 
-#### Updated Methods:
+#### adminCreateVendor()
+- Added validation for pickup address fields
+- `pickup_address` and `pickup_state` are **required**
+- `pickup_city` and `pickup_phone` are optional but recommended
 
-**a) `trackOrder()` - User tracking endpoint**
-- Now saves pickup address from Fez response when tracking
-- Returns `pickup_name` and `pickup_address` in API response
+#### adminUpdateVendor()
+- Added support for updating pickup address fields
+- All pickup fields can be updated independently
 
-**b) `adminTrackOrder()` - Admin tracking endpoint**
-- Same updates as user endpoint
-- Admin can see pickup address in tracking details
+### 4. Frontend Admin Panel Updates
+**File**: `frontend/src/pages/admin/MarketPlace.js`
 
-**Logic Added:**
+#### Vendor Form State
+- Added pickup address fields to `vendorForm` state
+- Fields: `pickup_address`, `pickup_city`, `pickup_state`, `pickup_phone`
+
+#### Vendor Dialog UI
+- Expanded dialog from `maxWidth="sm"` to `maxWidth="md"` for better layout
+- Added new section: "Pickup Address (For FEZ Delivery)"
+- Added 4 new form fields:
+  1. **Pickup Address** (multiline, required) - Full address where FEZ will collect items
+  2. **Pickup City** (text, required)
+  3. **Pickup State** (text, required) - Must match FEZ state names
+  4. **Pickup Contact Phone** (text, required) - For pickup coordination
+
+#### Form Validation
+- Save button is disabled if:
+  - `name` is empty
+  - `pickup_address` is empty
+  - `pickup_state` is empty
+
+## FEZ Delivery Integration
+
+### How Pickup Address Will Be Used
+
+When an order is placed, the system will:
+
+1. **Get vendor from product** → Each product has a `vendor_id`
+2. **Retrieve vendor pickup address** → From `marketplace_vendors` table
+3. **Send to FEZ API** → Include in `POST /order` payload:
+
 ```php
-// Save pickup address from Fez response
-if (isset($tracking['order']['senderName']) || isset($tracking['order']['senderAddress'])) {
-    $order->update([
-        'pickup_name' => $tracking['order']['senderName'] ?? null,
-        'pickup_address' => $tracking['order']['senderAddress'] ?? null,
-    ]);
-}
+[
+    'recipientAddress' => $order->delivery_address,
+    'recipientState' => $order->delivery_state,
+    'recipientName' => $order->delivery_name,
+    'recipientPhone' => $order->delivery_phone,
+    'pickUpAddress' => $vendor->pickup_address,  // ✅ Vendor pickup address
+    'pickUpState' => $vendor->pickup_state,      // ✅ Vendor pickup state
+    'uniqueID' => $order->reference,
+    'BatchID' => 'BATCH_' . date('Ymd'),
+    'valueOfItem' => (string) $order->total_amount,
+    'weight' => $product->weight ?? 1,
+]
 ```
 
----
+### FEZ API Fields Mapping
 
-## How It Works
+| Vendlike Field | FEZ API Field | Required | Description |
+|----------------|---------------|----------|-------------|
+| `vendor->pickup_address` | `pickUpAddress` | No* | Pickup location (defaults to org address if omitted) |
+| `vendor->pickup_state` | `pickUpState` | No* | Pickup state (defaults to org state if omitted) |
+| `vendor->pickup_phone` | N/A | No | For internal coordination only |
+| `vendor->pickup_city` | N/A | No | For internal reference only |
 
-### Flow:
-1. **Order Created** → Fez delivery booked → `fez_order_no` saved
-2. **User Tracks Order** → App calls `/api/marketplace/orders/{reference}/track`
-3. **Backend Fetches Fez Data** → Calls Fez `/order/track/{orderNo}`
-4. **Fez Returns**:
-   ```json
-   {
-     "order": {
-       "senderName": "KIDS PLACE",
-       "senderAddress": "3A SULAIMON SHODERU STREET, HARUNA BUS STOP, IKORODU",
-       "recipientName": "John Doe",
-       "recipientAddress": "10 Allen Avenue, Ikeja"
-     }
-   }
-   ```
-5. **Backend Saves** → `pickup_name` and `pickup_address` stored in database
-6. **Backend Returns** → Pickup address included in tracking response
-7. **Mobile App Shows** → Customer sees both pickup and delivery addresses
+*While FEZ marks these as optional (defaults to org address), we make them **required** in Vendlike because each vendor has their own location.
 
----
+### State Name Validation
 
-## API Response Format
+The `pickup_state` must match one of the 37 FEZ-supported states:
+- 36 Nigerian states + FCT
+- Examples: "Lagos", "Kano", "Rivers", "FCT"
+- See `FEZ_DELIVERY_API_REFERENCE.md` section 5.2 for full list
 
-### Before (Old):
-```json
-{
-  "status": "success",
-  "data": {
-    "order_status": "processing",
-    "delivery_status": "Dispatched",
-    "fez_order_no": "JHAZ27012319",
-    "timeline": [...]
-  }
-}
+## Migration Instructions
+
+### On Production Server
+
+1. **Run migration**:
+```bash
+php artisan migrate
 ```
 
-### After (New):
-```json
-{
-  "status": "success",
-  "data": {
-    "order_status": "processing",
-    "delivery_status": "Dispatched",
-    "fez_order_no": "JHAZ27012319",
-    "pickup_name": "KIDS PLACE",
-    "pickup_address": "3A SULAIMON SHODERU STREET, HARUNA BUS STOP, IKORODU",
-    "timeline": [...]
-  }
-}
+2. **Update existing vendors**:
+```bash
+php artisan tinker
+```
+```php
+// Check vendors without pickup address
+DB::table('marketplace_vendors')->whereNull('pickup_address')->get();
+
+// Update manually if needed
+DB::table('marketplace_vendors')->where('id', 1)->update([
+    'pickup_address' => '123 Main Street, Ikeja',
+    'pickup_city' => 'Ikeja',
+    'pickup_state' => 'Lagos',
+    'pickup_phone' => '08012345678'
+]);
 ```
 
----
-
-## Deployment Steps
-
-### On Live Server:
-
-1. **Pull latest code**:
-   ```bash
-   git pull origin master
-   ```
-
-2. **Run migration**:
-   ```bash
-   php artisan migrate --force
-   ```
-
-3. **Clear caches**:
-   ```bash
-   php artisan config:clear
-   php artisan cache:clear
-   php artisan route:clear
-   ```
-
-4. **Verify columns exist**:
-   ```sql
-   DESCRIBE marketplace_orders;
-   ```
-   Should show: `pickup_name`, `pickup_address`, `pickup_phone`
-
----
-
-## Mobile App Integration (Next Steps)
-
-### Update Order Detail Screen
-**File**: `Vendlike Mobile/lib/modules/marketplace/screens/order_detail_screen.dart` (or similar)
-
-Add pickup address display:
-```dart
-// Pickup Information Section
-if (order['pickup_address'] != null) {
-  _buildInfoCard(
-    title: 'Pickup Location',
-    icon: Icons.store_outlined,
-    children: [
-      if (order['pickup_name'] != null)
-        _buildInfoRow('Warehouse', order['pickup_name']),
-      _buildInfoRow('Address', order['pickup_address']),
-    ],
-  ),
-}
-
-// Delivery Information Section
-_buildInfoCard(
-  title: 'Delivery Location',
-  icon: Icons.location_on_outlined,
-  children: [
-    _buildInfoRow('Name', order['delivery_name']),
-    _buildInfoRow('Phone', order['delivery_phone']),
-    _buildInfoRow('Address', order['delivery_address']),
-  ],
-),
+3. **Clear cache**:
+```bash
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
 ```
 
-### Update Tracking Timeline
-Show pickup address at the top of the delivery timeline so customers know where their package is coming from.
+## Admin User Instructions
 
----
+### Adding a New Vendor
 
-## Benefits
+1. Go to **Admin Panel** → **Plan** → **Market Place**
+2. Click **Vendors** tab
+3. Click **Add Vendor** button
+4. Fill in vendor information:
+   - Contact Name (required)
+   - Business Name
+   - Phone
+   - Email
+   - Description
 
-1. **Transparency** - Customers see full delivery journey (pickup → delivery)
-2. **Trust** - Knowing the warehouse location builds confidence
-3. **Support** - Easier to resolve delivery issues when pickup location is known
-4. **Tracking** - Complete visibility of package movement
+5. **Fill in Pickup Address** (required for FEZ delivery):
+   - **Pickup Address**: Full address where FEZ will collect items
+     - Example: "Shop 45, Balogun Market, Lagos Island"
+   - **Pickup City**: City name
+     - Example: "Lagos Island"
+   - **Pickup State**: Must be valid Nigerian state
+     - Example: "Lagos"
+   - **Pickup Contact Phone**: Phone for pickup coordination
+     - Example: "08012345678"
 
----
+6. Click **Create**
 
-## Notes
+### Editing Existing Vendor
 
-- Pickup address is fetched from Fez on first tracking call
-- Data is cached in database for faster subsequent loads
-- If Fez doesn't return pickup address, fields remain NULL (no errors)
-- Existing orders without pickup address will get it populated on next tracking call
+1. Click the **Edit** icon (pencil) next to the vendor
+2. Update any fields including pickup address
+3. Click **Update**
 
----
+### Important Notes
 
-## Testing
+- **Pickup State** must match FEZ state names exactly (case-sensitive)
+- **Pickup Address** should be detailed enough for FEZ riders to locate
+- **Pickup Phone** should be reachable during business hours
+- Vendors without pickup address cannot have their products delivered via FEZ
 
-### Test Scenario:
-1. Place a new marketplace order
-2. Wait for Fez to assign pickup location
-3. Track the order via mobile app
-4. Verify pickup address appears in order details
-5. Check database to confirm data is saved
+## Testing Checklist
 
-### SQL Query to Check:
-```sql
-SELECT 
-  reference, 
-  fez_order_no, 
-  pickup_name, 
-  pickup_address, 
-  delivery_address 
-FROM marketplace_orders 
-WHERE fez_order_no IS NOT NULL 
-ORDER BY created_at DESC 
-LIMIT 10;
-```
+- [ ] Migration runs successfully
+- [ ] Can create new vendor with pickup address
+- [ ] Can update existing vendor's pickup address
+- [ ] Form validation works (required fields)
+- [ ] Pickup address appears in vendor list
+- [ ] FEZ API receives correct pickup address in order payload
+- [ ] Orders with multiple vendors from different locations work correctly
 
----
+## Future Enhancements
 
-**Status**: ✅ Backend implementation complete
-**Next**: Mobile app UI updates (NOT DONE YET - remember you don't push mobile changes)
+1. **State Dropdown**: Replace text input with dropdown of 37 FEZ states
+2. **Address Validation**: Integrate Google Maps API for address verification
+3. **Multiple Pickup Locations**: Allow vendors to have multiple pickup addresses
+4. **Pickup Schedule**: Add vendor operating hours for pickup coordination
+5. **Vendor Dashboard**: Allow vendors to manage their own pickup addresses
 
-**Last Updated**: April 11, 2026
+## Related Files
+
+- `FEZ_DELIVERY_API_REFERENCE.md` - FEZ API documentation
+- `app/Services/FezDeliveryService.php` - FEZ API client (to be created)
+- `app/Http/Controllers/API/MarketplaceController.php` - Marketplace API
+- `database/migrations/2024_03_18_000001_create_marketplace_tables.php` - Original marketplace tables
+
+## Status
+
+- ✅ Database migration created
+- ✅ Model updated
+- ✅ Backend API updated
+- ✅ Frontend admin panel updated
+- ⏳ Migration needs to run on production
+- ⏳ FEZ integration needs to use pickup address in order creation
+- ⏳ Testing required
+
+**Last Updated**: April 16, 2026

@@ -563,6 +563,10 @@ class MarketplaceController extends Controller
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:100',
             'description' => 'nullable|string|max:500',
+            'pickup_address' => 'required|string|max:500',
+            'pickup_city' => 'nullable|string|max:100',
+            'pickup_state' => 'required|string|max:100',
+            'pickup_phone' => 'nullable|string|max:20',
         ]);
         if ($validator->fails()) {
             return response()->json(['status' => 'fail', 'message' => $validator->errors()->first()], 400);
@@ -573,6 +577,10 @@ class MarketplaceController extends Controller
             'phone' => $request->phone,
             'email' => $request->email,
             'description' => $request->description,
+            'pickup_address' => $request->pickup_address,
+            'pickup_city' => $request->pickup_city,
+            'pickup_state' => $request->pickup_state,
+            'pickup_phone' => $request->pickup_phone,
             'is_active' => true,
         ]);
         return response()->json(['status' => 'success', 'message' => 'Vendor created', 'data' => $vendor]);
@@ -600,6 +608,14 @@ class MarketplaceController extends Controller
             $vendor->email = $request->email;
         if ($request->has('description'))
             $vendor->description = $request->description;
+        if ($request->has('pickup_address'))
+            $vendor->pickup_address = $request->pickup_address;
+        if ($request->has('pickup_city'))
+            $vendor->pickup_city = $request->pickup_city;
+        if ($request->has('pickup_state'))
+            $vendor->pickup_state = $request->pickup_state;
+        if ($request->has('pickup_phone'))
+            $vendor->pickup_phone = $request->pickup_phone;
         if ($request->has('is_active'))
             $vendor->is_active = (bool) $request->is_active;
         $vendor->save();
