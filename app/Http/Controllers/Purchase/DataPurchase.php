@@ -297,7 +297,7 @@ class DataPurchase extends Controller
                                                 if ($bypass == false) {
                                                     $validate = substr($phone, 0, 4);
                                                     if ($network_d->network == "MTN") {
-                                                        if (strpos(" 0702 0703 0713 0704 0706 0716 0802 0803 0806 0810 0813 0814 0816 0903 0913 0906 0916 0804 ", $validate) == FALSE || strlen($phone) != 11) {
+                                                        if (strpos(" 0702 0703 0704 0706 0707 0708 0713 0716 0802 0803 0804 0806 0810 0813 0814 0816 0903 0906 0913 0916 ", $validate) == FALSE || strlen($phone) != 11) {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'This is not a MTN Number => ' . $phone
@@ -306,7 +306,7 @@ class DataPurchase extends Controller
                                                             $habukhan_bypass = true;
                                                         }
                                                     } else if ($network_d->network == "GLO") {
-                                                        if (strpos(" 0805 0705 0905 0807 0907 0707 0817 0917 0717 0715 0815 0915 0811 0711 0911 ", $validate) == FALSE || strlen($phone) != 11) {
+                                                        if (strpos(" 0705 0715 0805 0807 0811 0815 0905 0915 ", $validate) == FALSE || strlen($phone) != 11) {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'This is not a GLO Number =>' . $phone
@@ -315,7 +315,7 @@ class DataPurchase extends Controller
                                                             $habukhan_bypass = true;
                                                         }
                                                     } else if ($network_d->network == "AIRTEL") {
-                                                        if (strpos(" 0904 0802 0902 0702 0808 0908 0708 0918 0818 0718 0812 0912 0712 0801 0701 0901 0907 0917 ", $validate) == FALSE || strlen($phone) != 11) {
+                                                        if (strpos(" 0701 0708 0802 0808 0812 0901 0902 0904 0907 0912 ", $validate) == FALSE || strlen($phone) != 11) {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'This is not a AIRTEL Number => ' . $phone
@@ -324,7 +324,7 @@ class DataPurchase extends Controller
                                                             $habukhan_bypass = true;
                                                         }
                                                     } else if ($network_d->network == "9MOBILE") {
-                                                        if (strpos(" 0809 0909 0709 0819 0919 0719 0817 0917 0717 0718 0918 0818 0808 0708 0908 ", $validate) == FALSE || strlen($phone) != 11) {
+                                                        if (strpos(" 0809 0817 0818 0909 0908 ", $validate) == FALSE || strlen($phone) != 11) {
                                                             return response()->json([
                                                                 'status' => 'fail',
                                                                 'message' => 'This is not a 9MOBILE Number => ' . $phone

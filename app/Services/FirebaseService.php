@@ -96,6 +96,32 @@ class FirebaseService
 
             $message = $message->withAndroidConfig(AndroidConfig::fromArray($androidConfig));
 
+            // ✅ iOS/APNs Configuration (CRITICAL for iOS notifications)
+            $apnsConfig = [
+                'headers' => [
+                    'apns-priority' => '10', // High priority
+                ],
+                'payload' => [
+                    'aps' => [
+                        'alert' => [
+                            'title' => $title,
+                            'body' => $body,
+                        ],
+                        'sound' => 'default',
+                        'badge' => 1,
+                        'mutable-content' => 1, // Allows notification service extensions
+                    ],
+                ],
+            ];
+
+            // Add image to iOS if provided
+            if ($image && !$is_data_only) {
+                $apnsConfig['payload']['aps']['alert']['image'] = $image;
+                $apnsConfig['fcm_options'] = ['image' => $image];
+            }
+
+            $message = $message->withApnsConfig($apnsConfig);
+
             $this->messaging->send($message);
             Log::info("FCM Notification sent successfully to token: " . substr($token, 0, 10) . "...");
             return true;
@@ -191,6 +217,31 @@ class FirebaseService
             }
 
             $message = $message->withAndroidConfig(AndroidConfig::fromArray($androidConfig));
+
+            // ✅ iOS/APNs Configuration for Multicast
+            $apnsConfig = [
+                'headers' => [
+                    'apns-priority' => '10',
+                ],
+                'payload' => [
+                    'aps' => [
+                        'alert' => [
+                            'title' => $title,
+                            'body' => $body,
+                        ],
+                        'sound' => 'default',
+                        'badge' => 1,
+                        'mutable-content' => 1,
+                    ],
+                ],
+            ];
+
+            if ($image && !$is_data_only) {
+                $apnsConfig['payload']['aps']['alert']['image'] = $image;
+                $apnsConfig['fcm_options'] = ['image' => $image];
+            }
+
+            $message = $message->withApnsConfig($apnsConfig);
 
             $chunks = array_chunk($tokens, 500); // FCM multicast limit is 500
             $totalSuccess = 0;
