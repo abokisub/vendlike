@@ -237,7 +237,7 @@ class AirtimePurchase extends Controller
                                     if ($phone == '08011111111') {
                                         $habukhan_bypass = true;
                                     } else if ($network_d->network == "MTN") {
-                                        if (strpos(" 0702 0703 0704 0706 0707 0708 0713 0716 0802 0803 0804 0806 0810 0813 0814 0816 0903 0906 0913 0916 ", $validate) == FALSE || strlen($phone) != 11) {
+                                        if (strpos(" 0702 0703 0704 0706 0707 0803 0806 0810 0813 0814 0816 0903 0906 0913 0916 ", $validate) == FALSE || strlen($phone) != 11) {
                                             return response()->json([
                                                 'status' => 'fail',
                                                 'message' => 'This is not a MTN Number => ' . $phone

@@ -2,8 +2,8 @@
 
 ## MTN Nigeria
 ```
-0702, 0703, 0704, 0706, 0707, 0708, 0713, 0716
-0802, 0803, 0804, 0806, 0810, 0813, 0814, 0816
+0702, 0703, 0704, 0706, 0707
+0803, 0806, 0810, 0813, 0814, 0816
 0903, 0906, 0913, 0916
 ```
 
@@ -27,11 +27,12 @@
 0909, 0908
 ```
 
-## Key Changes Made:
-1. **0707 moved from GLO to MTN** (was incorrectly listed in both)
-2. Removed duplicate/invalid prefixes
-3. Cleaned up overlapping prefixes between networks
-4. Updated to 2026 active prefixes only
+## Key Changes Made (Latest Update):
+1. **MTN prefixes corrected**: Removed 0708, 0713, 0716, 0802, 0804 (these were incorrect)
+2. **0707 confirmed as MTN** (not GLO)
+3. **0708 confirmed as Airtel** (not MTN)
+4. **0802 confirmed as Airtel** (not MTN)
+5. All prefixes now match official 2026 Nigerian network allocations
 
 ## Files Updated:
 - `app/Http/Controllers/Purchase/AirtimePurchase.php`
