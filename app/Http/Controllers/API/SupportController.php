@@ -196,17 +196,18 @@ class SupportController extends Controller
     }
 
     /**
-     * Process FAQ Response - AI Guide Mode ONLY
-     * NO transaction logic, NO receipt logic, NO smart guessing
+     * Process FAQ Response - Enhanced AI with comprehensive Vendlike knowledge
+     * Trained on all services: Airtime, Data, Bills, A2Cash, Gift Cards, Marketplace, Transfers
      */
     private function processFAQResponse($message, $user, $ticketId)
     {
         // 1. Greetings
-        if (preg_match('/^(hi|hello|hey|greetings|good morning|good afternoon|good evening)/i', $message)) {
+        if (preg_match('/^(hi|hello|hey|greetings|good morning|good afternoon|good evening|welcome)/i', $message)) {
             return [
-                'message' => "Hi {$user->username} 👋 I'm VendLike Assistant, your FAQ helper.\n\nI can help explain how things work, fees, and limits. For account-specific issues or missing funds, please tap 'Contact Support'.\n\nHow can I help you today?",
+                'message' => "Hi {$user->username} 👋 Welcome to Vendlike!\n\nI'm your AI assistant, here to help you understand our services, fees, and how to use the platform.\n\n**What I can help with:**\n• How to use services\n• Fees and charges\n• Account limits\n• General questions\n\n**For account issues:** Please contact our support team.\n\nWhat would you like to know?",
                 'actions' => [
-                    ['label' => 'How to Add Cash', 'action' => 'faq_funding'],
+                    ['label' => 'Fund Wallet', 'action' => 'faq_funding'],
+                    ['label' => 'Buy Airtime/Data', 'action' => 'faq_airtime'],
                     ['label' => 'Service Fees', 'action' => 'faq_fees'],
                     ['label' => 'Contact Support', 'action' => 'speak_human']
                 ]
