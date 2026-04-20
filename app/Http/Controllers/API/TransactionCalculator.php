@@ -1920,6 +1920,38 @@ class TransactionCalculator extends Controller
                     $bank_transfer_total = $transfers_total;
                     $referral_earnings = $referral_total;
 
+                    // Calculate transaction counts for each category
+                    $wallet_count = $wallet_trans->count();
+                    $bank_transfer_count = $transfer_trans->count();
+                    $airtime_data_count = $airtime_trans->count() + $data_trans->count();
+                    $bill_count = $bill_trans->count();
+                    $cable_count = $cable_trans->count();
+                    $education_count = $exam_trans->count();
+                    $charity_count = $charity_donations->count();
+                    $cash_count = $cash_trans->count();
+                    $recharge_card_count = $recharge_card_trans->count();
+                    $dollar_card_count = $spend_trans->filter(function($tx) {
+                        return in_array($tx->role, ['card_creation', 'card_funding']);
+                    })->count();
+                    $shop_count = $spend_trans->filter(function($tx) {
+                        return $tx->role == 'marketplace';
+                    })->count();
+                    $jamb_count = $spend_trans->filter(function($tx) {
+                        return $tx->role == 'jamb';
+                    })->count();
+                    $gift_card_count = $spend_trans->filter(function($tx) {
+                        return $tx->role == 'debit' && strpos($tx->message, 'Buy Gift Card') !== false;
+                    })->count();
+                    $referral_count = $referral_trans->count();
+                    
+                    // Calculate others count (transactions not in any specific category)
+                    $tracked_count = $wallet_count + $bank_transfer_count + $airtime_data_count + $bill_count + 
+                                    $cable_count + $education_count + $charity_count + $cash_count + 
+                                    $recharge_card_count + $dollar_card_count + $shop_count + $jamb_count + 
+                                    $gift_card_count + $referral_count;
+                    $total_spend_count = $spend_trans->count() + $transfer_trans->count();
+                    $others_count = max(0, $total_spend_count - $tracked_count);
+
                     $final_response = response()->json([
                         'status' => 'success',
                         'charity_donations' => number_format($charity_donation_amount, 2),
@@ -2009,21 +2041,21 @@ class TransactionCalculator extends Controller
                         'transfer_charges' => number_format($transfer_charges, 2),
                         'referral_earnings' => number_format($referral_earnings, 2),
                         'categories' => [
-                            ['name' => 'Wallet Transfer', 'amount' => round($wallet_total, 2), 'icon' => 'wallet', 'color' => '0xFFF97316'],
-                            ['name' => 'Bank Transfer', 'amount' => round($bank_transfer_total, 2), 'icon' => 'account_balance', 'color' => '0xFF3B82F6'],
-                            ['name' => 'Airtime & Data', 'amount' => round($airtime_total + $data_total, 2), 'icon' => 'cell_tower', 'color' => '0xFF10B981'],
-                            ['name' => 'Bills', 'amount' => round($bill_total, 2), 'icon' => 'electric_bolt', 'color' => '0xFFF59E0B'],
-                            ['name' => 'Cable TV', 'amount' => round($cable_total, 2), 'icon' => 'tv', 'color' => '0xFF8B5CF6'],
-                            ['name' => 'Education', 'amount' => round($education_total, 2), 'icon' => 'school', 'color' => '0xFFF43F5E'],
-                            ['name' => 'Charity', 'amount' => round($charity_donation_amount, 2), 'icon' => 'volunteer_activism', 'color' => '0xFF06B6D4'],
-                            ['name' => 'Airtime to Cash', 'amount' => round($cash_pay, 2), 'icon' => 'currency_exchange', 'color' => '0xFFEC4899'],
-                            ['name' => 'Airtime PIN', 'amount' => round($recharge_card_total, 2), 'icon' => 'confirmation_number', 'color' => '0xFF6366F1'],
-                            ['name' => 'Dollar Card', 'amount' => round($dollar_card_total, 2), 'icon' => 'currency_exchange', 'color' => '0xFF14B8A6'],
-                            ['name' => 'Shop', 'amount' => round($shop_total, 2), 'icon' => 'shopping_bag', 'color' => '0xFFEC4899'],
-                            ['name' => 'Jamb', 'amount' => round($jamb_total, 2), 'icon' => 'school', 'color' => '0xFFEF4444'],
-                            ['name' => 'Gift Card', 'amount' => round($gift_card_total, 2), 'icon' => 'card_giftcard', 'color' => '0xFFF59E0B'],
-                            ['name' => 'Referrals', 'amount' => round($referral_earnings, 2), 'icon' => 'people', 'color' => '0xFF84CC16'],
-                            ['name' => 'Others', 'amount' => round($others_total, 2), 'icon' => 'more_horiz', 'color' => '0xFF6B7280'],
+                            ['name' => 'Wallet Transfer', 'amount' => round($wallet_total, 2), 'count' => $wallet_count, 'icon' => 'wallet', 'color' => '0xFFF97316'],
+                            ['name' => 'Bank Transfer', 'amount' => round($bank_transfer_total, 2), 'count' => $bank_transfer_count, 'icon' => 'account_balance', 'color' => '0xFF3B82F6'],
+                            ['name' => 'Airtime & Data', 'amount' => round($airtime_total + $data_total, 2), 'count' => $airtime_data_count, 'icon' => 'cell_tower', 'color' => '0xFF10B981'],
+                            ['name' => 'Bills', 'amount' => round($bill_total, 2), 'count' => $bill_count, 'icon' => 'electric_bolt', 'color' => '0xFFF59E0B'],
+                            ['name' => 'Cable TV', 'amount' => round($cable_total, 2), 'count' => $cable_count, 'icon' => 'tv', 'color' => '0xFF8B5CF6'],
+                            ['name' => 'Education', 'amount' => round($education_total, 2), 'count' => $education_count, 'icon' => 'school', 'color' => '0xFFF43F5E'],
+                            ['name' => 'Charity', 'amount' => round($charity_donation_amount, 2), 'count' => $charity_count, 'icon' => 'volunteer_activism', 'color' => '0xFF06B6D4'],
+                            ['name' => 'Airtime to Cash', 'amount' => round($cash_pay, 2), 'count' => $cash_count, 'icon' => 'currency_exchange', 'color' => '0xFFEC4899'],
+                            ['name' => 'Airtime PIN', 'amount' => round($recharge_card_total, 2), 'count' => $recharge_card_count, 'icon' => 'confirmation_number', 'color' => '0xFF6366F1'],
+                            ['name' => 'Dollar Card', 'amount' => round($dollar_card_total, 2), 'count' => $dollar_card_count, 'icon' => 'currency_exchange', 'color' => '0xFF14B8A6'],
+                            ['name' => 'Shop', 'amount' => round($shop_total, 2), 'count' => $shop_count, 'icon' => 'shopping_bag', 'color' => '0xFFEC4899'],
+                            ['name' => 'Jamb', 'amount' => round($jamb_total, 2), 'count' => $jamb_count, 'icon' => 'school', 'color' => '0xFFEF4444'],
+                            ['name' => 'Gift Card', 'amount' => round($gift_card_total, 2), 'count' => $gift_card_count, 'icon' => 'card_giftcard', 'color' => '0xFFF59E0B'],
+                            ['name' => 'Referrals', 'amount' => round($referral_earnings, 2), 'count' => $referral_count, 'icon' => 'people', 'color' => '0xFF84CC16'],
+                            ['name' => 'Others', 'amount' => round($others_total, 2), 'count' => $others_count, 'icon' => 'more_horiz', 'color' => '0xFF6B7280'],
                         ],
                         'recent_spending' => DB::table('message')->where('username', $real_username)->where('role', '!=', 'credit')->orderBy('habukhan_date', 'desc')->limit(10)->get()->map(function ($tx) {
                             $cat = 'Others';
