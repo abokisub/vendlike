@@ -3007,7 +3007,7 @@ class AdminController extends Controller
             $token = $id ?: $request->id;
             $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifytoken($token)])->where(['type' => 'ADMIN']);
             if ($check_user->count() > 0) {
-                $settings = DB::table('settings')->select('transfer_lock_all', 'transfer_charge_type', 'transfer_charge_value', 'transfer_charge_cap')->first();
+                $settings = DB::table('settings')->select('transfer_lock_all', 'transfer_charge_type', 'transfer_charge_value', 'transfer_charge_cap', 'internal_transfer_enabled')->first();
                 $providers = DB::table('transfer_providers')->orderBy('priority', 'asc')->get();
 
                 return response()->json([
@@ -3096,6 +3096,20 @@ class AdminController extends Controller
                 $lock = ($request->action == 'lock') ? 1 : 0;
                 DB::table('settings')->update(['transfer_lock_all' => $lock]);
                 return response()->json(['status' => 'success', 'message' => 'Global Transfer Lock ' . ($lock ? 'Enabled' : 'Disabled')]);
+            }
+        }
+        return response()->json(['status' => 403, 'message' => 'Unauthorized'])->setStatusCode(403);
+    }
+
+    public function toggleInternalTransfer(Request $request)
+    {
+        $explode_url = explode(',', config('app.habukhan_app_key'));
+        if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+            $check_user = DB::table('user')->where(['status' => 1, 'id' => $this->verifytoken($request->id)])->where(['type' => 'ADMIN']);
+            if ($check_user->count() > 0) {
+                $enabled = ($request->action == 'enable') ? 1 : 0;
+                DB::table('settings')->update(['internal_transfer_enabled' => $enabled]);
+                return response()->json(['status' => 'success', 'message' => 'Internal Transfer ' . ($enabled ? 'Enabled' : 'Disabled')]);
             }
         }
         return response()->json(['status' => 403, 'message' => 'Unauthorized'])->setStatusCode(403);

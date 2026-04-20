@@ -186,6 +186,7 @@ Route::post('/secure/lock/bank/{id}/habukhan/secure', [AdminController::class, '
 Route::post('/secure/selection/banks/{id}/habukhan/secure', [AdminController::class, 'setTransferPriority']);
 Route::post('/secure/discount/other/{id}/habukhan/secure', [AdminController::class, 'updateTransferCharges']);
 Route::post('/secure/lock/global/transfers/{id}/habukhan/secure', [AdminController::class, 'toggleGlobalTransferLock']);
+Route::post('/secure/toggle/internal/transfer/{id}/habukhan/secure', [AdminController::class, 'toggleInternalTransfer']);
 Route::get('/secure/trans/settings/{id}/habukhan/secure', [AdminController::class, 'getTransferSettings']);
 
 // Mobile App - Banks List for Transfers

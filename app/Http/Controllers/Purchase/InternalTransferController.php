@@ -96,6 +96,15 @@ class InternalTransferController extends Controller
             return response()->json(['status' => 'fail', 'message' => 'Authentication Failed'])->setStatusCode(403);
         }
 
+        // CHECK IF INTERNAL TRANSFERS ARE ENABLED
+        $settings = $this->core();
+        if (!($settings->internal_transfer_enabled ?? true)) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => 'Internal transfers are currently disabled. Please use bank transfer instead or contact support.'
+            ])->setStatusCode(403);
+        }
+
         $validator = Validator::make($request->all(), [
             'amount' => 'required|numeric|gt:0',
             'recipient_identifier' => 'required|string',
