@@ -89,6 +89,14 @@ class GiftCardRedemption extends Model
     }
 
     /**
+     * Get the country
+     */
+    public function country()
+    {
+        return $this->belongsTo(Country::class);
+    }
+
+    /**
      * Get the admin who processed this redemption
      */
     public function processedBy()

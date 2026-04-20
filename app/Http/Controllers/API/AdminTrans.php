@@ -2223,24 +2223,49 @@ class AdminTrans extends Controller
                 if ($check_user->count() > 0) {
                     $search = strtolower($request->search);
 
-                    $query = DB::table('message')->where('transid', 'LIKE', 'MP_%')->orderBy('id', 'desc');
+                    // Join with marketplace_orders to get order details including items
+                    $query = DB::table('message')
+                        ->leftJoin('marketplace_orders', 'message.transid', '=', 'marketplace_orders.reference')
+                        ->select('message.*', 'marketplace_orders.id as order_id', 'marketplace_orders.delivery_status')
+                        ->where('message.transid', 'LIKE', 'MP_%')
+                        ->orderBy('message.id', 'desc');
 
                     if (!empty($search)) {
                         $query->where(function ($q) use ($search) {
-                            $q->where('message', 'LIKE', "%$search%")
-                                ->orWhere('username', 'LIKE', "%$search%")
-                                ->orWhere('habukhan_date', 'LIKE', "%$search%")
-                                ->orWhere('transid', 'LIKE', "%$search%")
-                                ->orWhere('amount', 'LIKE', "%$search%");
+                            $q->where('message.message', 'LIKE', "%$search%")
+                                ->orWhere('message.username', 'LIKE', "%$search%")
+                                ->orWhere('message.habukhan_date', 'LIKE', "%$search%")
+                                ->orWhere('message.transid', 'LIKE', "%$search%")
+                                ->orWhere('message.amount', 'LIKE', "%$search%");
                         });
                     }
 
                     if ($request->status != 'ALL' && is_numeric($request->status)) {
-                        $query->where('plan_status', $request->status);
+                        $query->where('message.plan_status', $request->status);
+                    }
+
+                    $transactions = $query->paginate($request->limit ?? 25);
+
+                    // For each transaction, fetch order items with product images
+                    foreach ($transactions->items() as $transaction) {
+                        if ($transaction->order_id) {
+                            $transaction->order_items = DB::table('marketplace_order_items')
+                                ->join('marketplace_products', 'marketplace_order_items.product_id', '=', 'marketplace_products.id')
+                                ->select(
+                                    'marketplace_order_items.*',
+                                    'marketplace_products.name as product_name',
+                                    'marketplace_products.image_url as product_image',
+                                    'marketplace_products.description as product_description'
+                                )
+                                ->where('marketplace_order_items.order_id', $transaction->order_id)
+                                ->get();
+                        } else {
+                            $transaction->order_items = [];
+                        }
                     }
 
                     return response()->json([
-                        'marketplace_trans' => $query->paginate($request->limit ?? 25)
+                        'marketplace_trans' => $transactions
                     ]);
                 } else {
                     return response()->json(['status' => 403, 'message' => 'Not Authorised'])->setStatusCode(403);

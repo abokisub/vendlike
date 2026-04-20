@@ -426,8 +426,11 @@ class AdminGiftCardController extends Controller
             $perPage = $request->get('per_page', 25);
             $search = $request->get('search', '');
 
-            $query = GiftCardRedemption::with(['user:id,name,email,phone,username', 'giftCardType:id,name,rate'])
-                ->orderBy('created_at', 'desc');
+            $query = GiftCardRedemption::with([
+                'user:id,name,email,phone,username', 
+                'giftCardType:id,name,rate',
+                'country:id,name,code,flag_emoji'
+            ])->orderBy('created_at', 'desc');
 
             if ($status !== 'all') {
                 $query->where('status', $status);
@@ -448,10 +451,45 @@ class AdminGiftCardController extends Controller
 
             $redemptions = $query->paginate($perPage, ['*'], 'page', $page);
 
-            // Add image URLs to each redemption (multi-file support)
-            $items = collect($redemptions->items())->map(function ($item) {
+            // Currency mapping based on country code
+            $currencyMap = [
+                'US' => ['symbol' => '$', 'code' => 'USD'],
+                'CA' => ['symbol' => 'CA$', 'code' => 'CAD'],
+                'GB' => ['symbol' => '£', 'code' => 'GBP'],
+                'UK' => ['symbol' => '£', 'code' => 'GBP'],
+                'EU' => ['symbol' => '€', 'code' => 'EUR'],
+                'DE' => ['symbol' => '€', 'code' => 'EUR'],
+                'FR' => ['symbol' => '€', 'code' => 'EUR'],
+                'IT' => ['symbol' => '€', 'code' => 'EUR'],
+                'ES' => ['symbol' => '€', 'code' => 'EUR'],
+                'NL' => ['symbol' => '€', 'code' => 'EUR'],
+                'BE' => ['symbol' => '€', 'code' => 'EUR'],
+                'AT' => ['symbol' => '€', 'code' => 'EUR'],
+                'AU' => ['symbol' => 'A$', 'code' => 'AUD'],
+                'NZ' => ['symbol' => 'NZ$', 'code' => 'NZD'],
+                'JP' => ['symbol' => '¥', 'code' => 'JPY'],
+                'CN' => ['symbol' => '¥', 'code' => 'CNY'],
+                'IN' => ['symbol' => '₹', 'code' => 'INR'],
+                'ZA' => ['symbol' => 'R', 'code' => 'ZAR'],
+                'BR' => ['symbol' => 'R$', 'code' => 'BRL'],
+                'MX' => ['symbol' => 'MX$', 'code' => 'MXN'],
+                'CH' => ['symbol' => 'CHF', 'code' => 'CHF'],
+                'SE' => ['symbol' => 'kr', 'code' => 'SEK'],
+                'NO' => ['symbol' => 'kr', 'code' => 'NOK'],
+                'DK' => ['symbol' => 'kr', 'code' => 'DKK'],
+            ];
+
+            // Add image URLs and currency info to each redemption
+            $items = collect($redemptions->items())->map(function ($item) use ($currencyMap) {
                 $item->image_url = $item->image_path ? asset('storage/' . $item->image_path) : null;
                 $item->image_urls = $item->image_urls; // Uses model accessor - returns array of all file URLs
+                
+                // Add currency information based on country
+                $countryCode = $item->country->code ?? 'US';
+                $currency = $currencyMap[$countryCode] ?? ['symbol' => '$', 'code' => 'USD'];
+                $item->currency_symbol = $currency['symbol'];
+                $item->currency_code = $currency['code'];
+                
                 return $item;
             });
 
