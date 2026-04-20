@@ -2257,11 +2257,18 @@ class AdminTrans extends Controller
                                 ->select(
                                     'marketplace_order_items.*',
                                     'marketplace_products.name as product_name',
-                                    'marketplace_products.image_url as product_image',
+                                    'marketplace_products.images as product_images',
                                     'marketplace_products.description as product_description'
                                 )
                                 ->where('marketplace_order_items.order_id', $transaction->order_id)
-                                ->get();
+                                ->get()
+                                ->map(function($item) {
+                                    // Extract first image from JSON array
+                                    $images = json_decode($item->product_images, true);
+                                    $item->product_image = !empty($images) && is_array($images) ? $images[0] : null;
+                                    unset($item->product_images); // Remove raw JSON
+                                    return $item;
+                                });
                         } else {
                             $transaction->order_items = [];
                         }
