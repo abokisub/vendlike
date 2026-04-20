@@ -575,12 +575,7 @@ class SecureController extends Controller
                     else {
                         $wema = 0;
                     }
-                    if ($request->kolomoni_mfb == true || $request->kolomoni_mfb == 1) {
-                        $kolomoni_mfb = 1;
-                    }
-                    else {
-                        $kolomoni_mfb = 0;
-                    }
+                    // kolomoni_mfb removed - it's a user table column, not settings table
                     if ($request->fed == true || $request->fed == 1) {
                         $fed = 1;
                     }
@@ -653,7 +648,6 @@ class SecureController extends Controller
                         'is_verify_email' => $is_verify_email,
                         'is_feature' => $is_feature,
                         'wema' => $wema,
-                        'kolomoni_mfb' => $kolomoni_mfb,
                         'fed' => $fed,
                         'str' => $str,
                         'bulksms' => $bulksms,
@@ -668,18 +662,13 @@ class SecureController extends Controller
                         'internal_transfer_enabled' => $internal_transfer_enabled,
                     ];
 
-                    if (DB::table('settings')->update($data)) {
-                        return response()->json([
-                            'status' => 'success',
-                            'message' => 'Updated'
-                        ]);
-                    }
-                    else {
-                        return response()->json([
-                            'status' => 403,
-                            'messgae' => 'Unable to update'
-                        ])->setStatusCode(403);
-                    }
+                    // Update returns 0 if no rows changed (values already same), but that's still success
+                    DB::table('settings')->update($data);
+                    
+                    return response()->json([
+                        'status' => 'success',
+                        'message' => 'Updated'
+                    ]);
                 }
                 else {
                     return response()->json([
