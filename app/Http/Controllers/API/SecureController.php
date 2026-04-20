@@ -639,6 +639,13 @@ class SecureController extends Controller
                         $card_usd_lock = 0;
                     }
 
+                    if ($request->internal_transfer_enabled == true || $request->internal_transfer_enabled == 1) {
+                        $internal_transfer_enabled = 1;
+                    }
+                    else {
+                        $internal_transfer_enabled = 0;
+                    }
+
                     $data = [
                         'monnify_atm' => $monnify_atm,
                         'monnify' => $monnify,
@@ -658,6 +665,7 @@ class SecureController extends Controller
                         'stock' => $stock,
                         'card_ngn_lock' => $card_ngn_lock,
                         'card_usd_lock' => $card_usd_lock,
+                        'internal_transfer_enabled' => $internal_transfer_enabled,
                     ];
 
                     if (DB::table('settings')->update($data)) {
