@@ -2224,8 +2224,11 @@ class AdminTrans extends Controller
                     $search = strtolower($request->search);
 
                     // Join with marketplace_orders to get order details including items
+                    // Use COLLATE to fix collation mismatch between tables
                     $query = DB::table('message')
-                        ->leftJoin('marketplace_orders', 'message.transid', '=', 'marketplace_orders.reference')
+                        ->leftJoin('marketplace_orders', function($join) {
+                            $join->on(DB::raw('message.transid COLLATE utf8mb4_unicode_ci'), '=', 'marketplace_orders.reference');
+                        })
                         ->select('message.*', 'marketplace_orders.id as order_id', 'marketplace_orders.delivery_status')
                         ->where('message.transid', 'LIKE', 'MP_%')
                         ->orderBy('message.id', 'desc');
