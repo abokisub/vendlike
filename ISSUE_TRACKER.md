@@ -97,27 +97,31 @@
 ## PRIORITY 3: NEW FEATURES TO ADD
 
 ### ✅ Issue #7: Add Internal Transfer Lock/Disable Feature
-**Status**: ✅ **BACKEND COMPLETE** (Pushed)  
+**Status**: ✅ **COMPLETE** (Backend Pushed, Flutter Ready)  
 **Priority**: MEDIUM  
 **Description**: "From admin dashboard react we should add internal Transfer lock. Ability to disable vendlike to Vendlike fund transfer...I no be bank."  
 **Fixed**: April 20, 2026  
-**Commit**: 4b8432f  
+**Commits**: 4b8432f (backend), Current (Flutter fix)  
 **Details**: 
 - Added `internal_transfer_enabled` column to `settings` table (default: true)
 - Created API endpoint: `POST /secure/toggle/internal/transfer/{id}/habukhan/secure`
 - Updated `InternalTransferController` to check setting before processing transfers
 - Updated `getTransferSettings()` to include `internal_transfer_enabled`
 - Migration ran successfully
+- **NEW**: Flutter app now checks setting and hides "Vendlike Account" option when disabled
 
 **Backend Status**: ✅ Complete and pushed  
 **Frontend Status**: ⏳ Needs UI in admin dashboard to toggle setting  
-**Flutter Status**: ✅ Already handles error message when disabled
+**Flutter Status**: ✅ Complete - conditionally shows/hides internal transfer option based on setting
 
 **Files Modified**:
 - `database/migrations/2026_04_20_090234_add_internal_transfer_enabled_to_settings.php` (NEW)
-- `app/Http/Controllers/Purchase/InternalTransferController.php`
-- `app/Http/Controllers/API/AdminController.php`
-- `routes/api.php`
+- `app/Http/Controllers/Purchase/InternalTransferController.php` (PUSHED)
+- `app/Http/Controllers/API/AdminController.php` (PUSHED)
+- `routes/api.php` (PUSHED)
+- `Vendlike Mobile/lib/modules/transactions/screens/send_money_options_screen.dart` (NOT PUSHED)
+
+**Documentation**: `INTERNAL_TRANSFER_LOCK_FIX.md`
 
 ---
 
@@ -184,11 +188,37 @@
 
 ---
 
+### ✅ Issue #12: Internal Transfer Lock Not Working in App
+**Status**: ✅ **FIXED** (Not Pushed)  
+**Priority**: HIGH  
+**Description**: "i lock the internel transfer but the App still letting me to click an user the internel transfer"  
+**Fixed**: April 20, 2026  
+**Root Cause**: Flutter app was not checking `internal_transfer_enabled` setting before showing the "Vendlike Account" option  
+**Solution**: 
+- Updated `send_money_options_screen.dart` to read setting from `AuthService.appSettings`
+- Conditionally show/hide "Vendlike Account" option based on setting
+- Defaults to enabled (true) if setting not found for backward compatibility
+- Backend already properly checks setting and returns 403 if disabled (double protection)
+
+**How It Works**:
+1. Admin disables internal transfer in admin panel
+2. Backend updates `settings.internal_transfer_enabled` to 0
+3. Flutter app refreshes via APPLOAD endpoint (every 25 seconds)
+4. Send Money screen hides "Vendlike Account" option
+5. If user bypasses UI, backend returns 403 error
+
+**Files Modified**:
+- `Vendlike Mobile/lib/modules/transactions/screens/send_money_options_screen.dart` (NOT PUSHED)
+
+**Documentation**: `INTERNAL_TRANSFER_LOCK_FIX.md`
+
+---
+
 ## SUMMARY
 
-**Total Issues**: 11  
+**Total Issues**: 12  
 **Critical Bugs Fixed**: 2 (Biometrics ✅, iOS Push Notifications ✅ backend)  
-**Already Fixed**: 7 (Network prefix, Vendor address, Logo, Rebranding, AI, Vendor notifications, Internal transfer lock)  
+**Already Fixed**: 8 (Network prefix, Vendor address, Logo, Rebranding, AI, Vendor notifications, Internal transfer lock backend, Internal transfer lock Flutter)  
 **Need Implementation**: 2 (Gift card select all, Marketplace address search)  
 **Needs Action**: 1 (iOS APNs key upload)
 
