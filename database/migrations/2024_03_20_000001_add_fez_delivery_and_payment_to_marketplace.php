@@ -23,7 +23,7 @@ return new class extends Migration
             DB::statement("ALTER TABLE marketplace_orders ADD COLUMN delivery_eta VARCHAR(100) NULL AFTER delivery_status");
         } catch (\Exception $e) {}
         try {
-            DB::statement("ALTER TABLE marketplace_orders ADD COLUMN payment_method VARCHAR(50) DEFAULT 'monnify' AFTER admin_note");
+            DB::statement("ALTER TABLE marketplace_orders ADD COLUMN payment_method VARCHAR(50) DEFAULT 'xixapay' AFTER admin_note");
         } catch (\Exception $e) {}
         try {
             DB::statement("ALTER TABLE marketplace_orders ADD COLUMN payment_reference VARCHAR(100) NULL AFTER payment_method");

@@ -997,7 +997,24 @@ class Trans extends Controller
         $order = DB::table('marketplace_orders')->where('reference', $request->id)->first();
         $items = [];
         if ($order) {
-            $items = DB::table('marketplace_order_items')->where('order_id', $order->id)->get();
+            $rawItems = DB::table('marketplace_order_items')->where('order_id', $order->id)->get();
+            // Enrich items with product images
+            $baseUrl = $request->getSchemeAndHttpHost();
+            foreach ($rawItems as $item) {
+                $product = DB::table('marketplace_products')->where('id', $item->product_id)->first();
+                $itemArray = (array) $item;
+                if ($product && $product->images) {
+                    $images = json_decode($product->images, true);
+                    if (is_array($images) && !empty($images)) {
+                        $itemArray['product_image'] = $baseUrl . '/storage/' . $images[0];
+                    } else {
+                        $itemArray['product_image'] = null;
+                    }
+                } else {
+                    $itemArray['product_image'] = null;
+                }
+                $items[] = $itemArray;
+            }
         }
 
         return response()->json([

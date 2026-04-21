@@ -681,6 +681,7 @@ Route::prefix('marketplace')->group(function () {
     Route::get('orders', [App\Http\Controllers\API\MarketplaceController::class, 'getOrders']);
     Route::get('orders/{reference}', [App\Http\Controllers\API\MarketplaceController::class, 'getOrder']);
     Route::post('orders/{reference}/repay', [App\Http\Controllers\API\MarketplaceController::class, 'repayOrder']);
+    Route::post('orders/{reference}/cancel', [App\Http\Controllers\API\MarketplaceController::class, 'cancelOrder']);
     Route::post('delivery-cost', [App\Http\Controllers\API\MarketplaceController::class, 'getDeliveryCost']);
     Route::get('track/{reference}', [App\Http\Controllers\API\MarketplaceController::class, 'trackOrder']);
     Route::post('verify-payment', [App\Http\Controllers\API\MarketplaceController::class, 'verifyPayment']);
@@ -703,6 +704,7 @@ Route::post('admin/marketplace/products/{prodId}/update/{id}/secure', [App\Http\
 Route::delete('admin/marketplace/products/{prodId}/delete/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminDeleteProduct']);
 Route::get('admin/marketplace/orders/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetOrders']);
 Route::post('admin/marketplace/orders/{orderId}/update/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminUpdateOrder']);
+Route::post('admin/marketplace/orders/{orderId}/book-fez/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminBookFezDelivery']);
 Route::get('admin/marketplace/orders/{orderId}/track/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminTrackOrder']);
 Route::post('admin/marketplace/orders/{orderId}/verify-payment/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminVerifyPayment']);
 Route::get('admin/marketplace/settings/{id}/secure', [App\Http\Controllers\API\MarketplaceController::class, 'adminGetSettings']);

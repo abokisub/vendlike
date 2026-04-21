@@ -359,13 +359,90 @@ class MarketplaceController extends Controller
 
         $orders = $query->orderByDesc('created_at')->get();
 
-        // Attach username
+        // Get base URL from request
+        $baseUrl = $request->getSchemeAndHttpHost();
+
+        // Attach username and product images
         foreach ($orders as $order) {
-            $user = DB::table('user')->where('id', $order->user_id)->first(['username', 'name', 'email']);
+            $user = DB::table('user')->where('id', $order->user_id)->first(['username', 'name', 'email', 'phone']);
             $order->user = $user;
+            
+            // Add product images to order items
+            foreach ($order->items as $item) {
+                $product = MarketplaceProduct::find($item->product_id);
+                if ($product && !empty($product->images)) {
+                    $images = is_array($product->images) ? $product->images : json_decode($product->images, true);
+                    if (!empty($images) && is_array($images)) {
+                        // Use request base URL for correct host
+                        $imagePath = $images[0];
+                        $item->product_image = $baseUrl . '/storage/' . $imagePath;
+                    } else {
+                        $item->product_image = null;
+                    }
+                } else {
+                    $item->product_image = null;
+                }
+                // Also add price for display
+                $item->price = $item->unit_price;
+            }
         }
 
         return response()->json(['status' => 'success', 'data' => $orders]);
+    }
+
+    /**
+     * Book Fez delivery for an order (admin-triggered)
+     */
+    public function adminBookFezDelivery(Request $request, $id)
+    {
+        $token = $request->route('id') ?? $request->query('token');
+        $verified_id = $this->verifytoken($token);
+        if (!$verified_id || !$this->isAdmin($verified_id)) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+
+        $orderId = $request->route('orderId') ?? $id;
+        $order = MarketplaceOrder::with('items')->find($orderId);
+        if (!$order) {
+            return response()->json(['status' => 'fail', 'message' => 'Order not found'], 404);
+        }
+
+        // Only book if payment is confirmed
+        if ($order->payment_status !== 'paid') {
+            return response()->json(['status' => 'fail', 'message' => 'Order must be paid before booking delivery'], 400);
+        }
+
+        // Check if already booked
+        if ($order->fez_order_no) {
+            return response()->json(['status' => 'fail', 'message' => 'Fez delivery already booked for this order'], 400);
+        }
+
+        // Allow admin to specify custom pickup address
+        $pickupAddress = $request->input('pickup_address');
+        $pickupName = $request->input('pickup_name');
+        $pickupPhone = $request->input('pickup_phone');
+        $pickupState = $request->input('pickup_state');
+
+        // Book Fez delivery with custom or default pickup info
+        $this->bookFezDelivery($order, $pickupAddress, $pickupName, $pickupPhone, $pickupState);
+
+        // Reload order to get updated fez_order_no
+        $order->refresh();
+
+        if ($order->fez_order_no) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Fez delivery booked successfully',
+                'data' => [
+                    'fez_order_no' => $order->fez_order_no,
+                    'delivery_status' => $order->delivery_status,
+                    'pickup_address' => $order->pickup_address,
+                    'pickup_name' => $order->pickup_name,
+                ],
+            ]);
+        } else {
+            return response()->json(['status' => 'fail', 'message' => 'Failed to book Fez delivery. Check logs for details.'], 500);
+        }
     }
 
     public function adminUpdateOrder(Request $request, $id)
@@ -1684,6 +1761,60 @@ class MarketplaceController extends Controller
         }
     }
 
+    /**
+     * Cancel a pending order (customer-facing)
+     */
+    public function cancelOrder(Request $request, $reference)
+    {
+        $user_id = $this->verifyapptoken($request->header('Authorization'));
+        if (!$user_id) {
+            return response()->json(['status' => 'fail', 'message' => 'Unauthorized'], 401);
+        }
+
+        $order = MarketplaceOrder::where('user_id', $user_id)
+            ->where('reference', $reference)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['status' => 'fail', 'message' => 'Order not found'], 404);
+        }
+
+        // Only allow cancellation if payment is pending
+        if ($order->payment_status === 'paid') {
+            return response()->json(['status' => 'fail', 'message' => 'Cannot cancel a paid order. Please contact support.'], 400);
+        }
+
+        // Already cancelled
+        if ($order->status === 'cancelled') {
+            return response()->json(['status' => 'fail', 'message' => 'Order is already cancelled.'], 400);
+        }
+
+        // Cannot cancel delivered orders
+        if ($order->status === 'delivered') {
+            return response()->json(['status' => 'fail', 'message' => 'Cannot cancel a delivered order.'], 400);
+        }
+
+        // Update order status to cancelled
+        $order->update(['status' => 'cancelled']);
+
+        // Log the cancellation
+        Log::info('Marketplace order cancelled by customer', [
+            'order_reference' => $reference,
+            'user_id' => $user_id,
+            'cancelled_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Order cancelled successfully.',
+            'data' => [
+                'reference' => $reference,
+                'status' => 'cancelled',
+            ],
+        ]);
+    }
+
+
     // ─── MOBILE: DELIVERY COST ───
 
     public function getDeliveryCost(Request $request)
@@ -2236,8 +2367,12 @@ class MarketplaceController extends Controller
             return;
         }
 
-        // Book Fez delivery (outside transaction — non-critical)
-        $this->bookFezDelivery($order);
+        // Auto-book Fez delivery ONLY if delivery mode is set to 'fez' in settings
+        $deliveryMode = DB::table('settings')->value('marketplace_delivery_mode') ?? 'self';
+        if ($deliveryMode === 'fez') {
+            $this->bookFezDelivery($order);
+        }
+        // If 'self' mode, admin will manually decide per order via "Book Fez Delivery" button
 
         // Push notification
         try {
@@ -2353,20 +2488,43 @@ class MarketplaceController extends Controller
     /**
      * Book delivery with Fez
      */
-    private function bookFezDelivery(MarketplaceOrder $order)
+    private function bookFezDelivery(MarketplaceOrder $order, $customPickupAddress = null, $customPickupName = null, $customPickupPhone = null, $customPickupState = null)
     {
         try {
             $fez = new FezDeliveryService();
             $items = MarketplaceOrderItem::where('order_id', $order->id)->get();
             $totalWeight = 0;
             $descriptions = [];
+            
+            // Get vendor info from first item (assuming all items from same vendor for now)
+            $firstProduct = MarketplaceProduct::find($items[0]->product_id);
+            $vendor = $firstProduct ? MarketplaceVendor::find($firstProduct->vendor_id) : null;
+
             foreach ($items as $item) {
                 $product = MarketplaceProduct::find($item->product_id);
                 $totalWeight += ($product->weight ?? 1) * $item->quantity;
                 $descriptions[] = $item->product_name . ' x' . $item->quantity;
             }
 
+            // Use custom pickup address if provided, otherwise use vendor's address
+            $pickupAddress = $customPickupAddress ?? ($vendor->pickup_address ?? 'Vendlike Office');
+            $pickupName = $customPickupName ?? ($vendor->business_name ?? $vendor->name ?? 'Vendlike');
+            $pickupPhone = $customPickupPhone ?? ($vendor->pickup_phone ?? $vendor->phone ?? '08000000000');
+            $pickupState = $customPickupState ?? ($vendor->pickup_state ?? 'Lagos');
+
+            // Save pickup info to order
+            $order->update([
+                'pickup_address' => $pickupAddress,
+                'pickup_name' => $pickupName,
+                'pickup_phone' => $pickupPhone,
+                'pickup_state' => $pickupState,
+            ]);
+
             $result = $fez->createOrder([
+                'senderAddress' => $pickupAddress,
+                'senderState' => $pickupState,
+                'senderName' => $pickupName,
+                'senderPhone' => $pickupPhone,
                 'recipientAddress' => $order->delivery_address,
                 'recipientState' => $order->delivery_state ?? 'Lagos',
                 'recipientName' => $order->delivery_name,

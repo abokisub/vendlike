@@ -2249,6 +2249,9 @@ class AdminTrans extends Controller
 
                     $transactions = $query->paginate($request->limit ?? 25);
 
+                    // Get base URL from request
+                    $baseUrl = $request->getSchemeAndHttpHost();
+
                     // For each transaction, fetch order items with product images
                     foreach ($transactions->items() as $transaction) {
                         if ($transaction->order_id) {
@@ -2262,10 +2265,14 @@ class AdminTrans extends Controller
                                 )
                                 ->where('marketplace_order_items.order_id', $transaction->order_id)
                                 ->get()
-                                ->map(function($item) {
-                                    // Extract first image from JSON array
+                                ->map(function($item) use ($baseUrl) {
+                                    // Extract first image from JSON array and create full URL
                                     $images = json_decode($item->product_images, true);
-                                    $item->product_image = !empty($images) && is_array($images) ? $images[0] : null;
+                                    if (!empty($images) && is_array($images)) {
+                                        $item->product_image = $baseUrl . '/storage/' . $images[0];
+                                    } else {
+                                        $item->product_image = null;
+                                    }
                                     unset($item->product_images); // Remove raw JSON
                                     return $item;
                                 });
