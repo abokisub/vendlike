@@ -167,6 +167,56 @@ class ProfileController extends Controller
     }
 
     /**
+     * Update User Webhook URL
+     * POST /api/user/webhook/{apikey}/secure
+     */
+    public function updateWebhook(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'webhook_url' => 'nullable|url',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => $validator->errors()->first()
+            ], 400);
+        }
+
+        $user = $request->user();
+
+        DB::table('user')->where('id', $user->id)->update([
+            'webhook' => $request->webhook_url
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Webhook URL updated successfully',
+            'webhook_url' => $request->webhook_url
+        ]);
+    }
+
+    /**
+     * Reset User API Key
+     * POST /api/user/reset/apikey/{apikey}/secure
+     */
+    public function resetApiKey(Request $request)
+    {
+        $user = $request->user();
+        $newApiKey = bin2hex(openssl_random_pseudo_bytes(30));
+
+        DB::table('user')->where('id', $user->id)->update([
+            'apikey' => $newApiKey
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'API Key reset successfully',
+            'apikey' => $newApiKey
+        ]);
+    }
+
+    /**
      * Get user theme from settings
      */
     private function getUserTheme($userId): string

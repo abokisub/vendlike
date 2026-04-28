@@ -70,10 +70,12 @@ Route::get('user/kyc/details', [AuthController::class, 'getKycDetails'])->middle
 Route::get('user/kyc/check', [App\Http\Controllers\API\KYCController::class, 'checkKycStatus'])->middleware('auth.token');
 Route::post('user/kyc/submit', [App\Http\Controllers\API\KYCController::class, 'submitKyc'])->middleware('auth.token');
 
-// Profile Limits & Statement
+// Profile Limits, Statement & API Config
 Route::get('profile/limits', [ProfileController::class, 'getLimits'])->middleware('auth.token');
 Route::post('profile/statement', [ProfileController::class, 'generateStatement'])->middleware('auth.token');
 Route::post('profile/update-theme', [ProfileController::class, 'updateTheme'])->middleware('auth.token');
+Route::post('user/webhook/secure', [ProfileController::class, 'updateWebhook'])->middleware('auth.token');
+Route::post('user/reset/apikey/secure', [ProfileController::class, 'resetApiKey'])->middleware('auth.token');
 
 // Customer Creation (Phase 3)
 Route::post('/user/customer/create', [AuthController::class, 'createCustomer'])->middleware(['auth.token']);
@@ -389,6 +391,7 @@ Route::get('system/all/airtime/trans/habukhan/{id}/secure', [Trans::class, 'AllA
 Route::get('system/all/cable/trans/habukhan/{id}/secure', [Trans::class, 'AllCableHistoryUser']);
 Route::get('system/all/bill/trans/habukhan/{id}/secure', [Trans::class, 'AllBillHistoryUser']);
 Route::get('system/all/result/trans/habukhan/{id}/secure', [Trans::class, 'AllResultHistoryUser']);
+Route::get('system/all/jamb/trans/habukhan/{id}/secure', [Trans::class, 'AllJambHistoryUser']);
 
 // Fix: Missing route for "Adex" history calls (maps to AllHistoryUser)
 Route::get('system/all/history/adex/{id}/secure', [Trans::class, 'AllHistoryUser']);

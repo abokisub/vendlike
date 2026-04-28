@@ -1028,8 +1028,9 @@ class AppController extends Controller
         if (!$origin || in_array($origin, $explode_url)) {
             $general = $this->general();
             $faqs = DB::table('faqs')->where('status', 1)->get();
+            $core = $this->core();
 
-            return response()->json([
+            $data = [
                 'status' => 'success',
                 'contact' => [
                     'phone' => $general->app_phone,
@@ -1047,8 +1048,32 @@ class AppController extends Controller
                     'support_whatsapp' => $general->app_whatsapp,
                     'whatsapp_channel' => 'https://whatsapp.com/channel/0029VbCmM1E6buMOgKBOsc2C',
                 ],
-                'faqs' => $faqs
-            ]);
+                'faqs' => $faqs,
+                'app_config' => [
+                    'notif_message' => $core->notif_message ?? '',
+                    'notif_show' => $core->notif_show ?? 0,
+                    'ads_message' => $core->ads_message ?? '',
+                    'ads_show' => $core->ads_show ?? 0,
+                    'android_url' => $core->playstore_url ?? '',
+                    'ios_url' => $core->appstore_url ?? '',
+                ]
+            ];
+
+            // If authenticated, include user data
+            $token = $request->header('Authorization') ?? $request->token;
+            if ($token) {
+                $accessToken = trim(str_replace("Token", "", $token));
+                $userId = $this->verifyapptoken($accessToken) ?? $this->verifytoken($accessToken);
+                if ($userId) {
+                    $user = DB::table('user')->where('id', $userId)->first();
+                    if ($user) {
+                        $data['user'] = $user;
+                        $data['balance'] = number_format($user->bal, 2);
+                    }
+                }
+            }
+
+            return response()->json($data);
         } else {
             return response()->json([
                 'status' => 403,

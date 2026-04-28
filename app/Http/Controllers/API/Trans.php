@@ -248,6 +248,57 @@ class Trans extends Controller
                         }
                     }
                 }
+                else if ($database_name == 'marketplace_orders') {
+                    $query = DB::table('marketplace_orders')->where('user_id', $user->id);
+                    if (!empty($search)) {
+                        $query->where(function ($q) use ($search) {
+                            $q->orWhere('reference', 'LIKE', "%$search%")
+                              ->orWhere('grand_total', 'LIKE', "%$search%")
+                              ->orWhere('delivery_name', 'LIKE', "%$search%")
+                              ->orWhere('created_at', 'LIKE', "%$search%");
+                        });
+                    }
+                    if ($request->status != 'ALL') {
+                        $query->where('status', $request->status);
+                    }
+                    return response()->json([
+                        'marketplace_orders' => $query->orderBy('id', 'desc')->paginate($request->limit)
+                    ]);
+                }
+                else if ($database_name == 'gift_card_trans') {
+                    $query = DB::table('gift_card_purchases')->where('user_id', $user->id);
+                    if (!empty($search)) {
+                        $query->where(function ($q) use ($search) {
+                            $q->orWhere('reference', 'LIKE', "%$search%")
+                              ->orWhere('product_name', 'LIKE', "%$search%")
+                              ->orWhere('naira_amount', 'LIKE', "%$search%")
+                              ->orWhere('created_at', 'LIKE', "%$search%");
+                        });
+                    }
+                    if ($request->status != 'ALL') {
+                        $query->where('status', $request->status);
+                    }
+                    return response()->json([
+                        'gift_card_trans' => $query->orderBy('id', 'desc')->paginate($request->limit)
+                    ]);
+                }
+                else if ($database_name == 'dollar_card_trans') {
+                    $query = DB::table('message')->where(['username' => $user->username, 'role' => 'dollar_card']);
+                    if (!empty($search)) {
+                        $query->where(function ($q) use ($search) {
+                            $q->orWhere('message', 'LIKE', "%$search%")
+                              ->orWhere('amount', 'LIKE', "%$search%")
+                              ->orWhere('transid', 'LIKE', "%$search%")
+                              ->orWhere('habukhan_date', 'LIKE', "%$search%");
+                        });
+                    }
+                    if ($request->status != 'ALL') {
+                        $query->where('plan_status', $request->status);
+                    }
+                    return response()->json([
+                        'dollar_card_trans' => $query->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'transid', 'plan_status')->orderBy('id', 'desc')->paginate($request->limit)
+                    ]);
+                }
                 else {
                     return response()->json([
                         'message' => 'Not invalid'
@@ -349,26 +400,26 @@ class Trans extends Controller
                         return response()->json([
                             'all_summary' => DB::table('message')->where(['username' => $user->username])->Where(function ($query) use ($search) {
                             $query->orWhere('message', 'LIKE', "%$search%")->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%");
-                        })->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role')->orderBy('id', 'desc')->paginate($request->limit)
+                        })->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role', 'phone_account')->orderBy('id', 'desc')->paginate($request->limit)
                         ]);
                     }
                     else {
                         return response()->json([
                             'all_summary' => DB::table('message')->where(['username' => $user->username, 'plan_status' => $request->status])->Where(function ($query) use ($search) {
                             $query->orWhere('message', 'LIKE', "%$search%")->orWhere('habukhan_date', 'LIKE', "%$search%")->orWhere('oldbal', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('newbal', 'LIKE', "%$search%");
-                        })->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role')->orderBy('id', 'desc')->paginate($request->limit)
+                        })->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role', 'phone_account')->orderBy('id', 'desc')->paginate($request->limit)
                         ]);
                     }
                 }
                 else {
                     if ($request->status == 'ALL') {
                         return response()->json([
-                            'all_summary' => DB::table('message')->where(['username' => $user->username])->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role')->orderBy('id', 'desc')->paginate($request->limit)
+                            'all_summary' => DB::table('message')->where(['username' => $user->username])->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role', 'phone_account')->orderBy('id', 'desc')->paginate($request->limit)
                         ]);
                     }
                     else {
                         return response()->json([
-                            'all_summary' => DB::table('message')->where(['username' => $user->username, 'plan_status' => $request->status])->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role')->orderBy('id', 'desc')->paginate($request->limit)
+                            'all_summary' => DB::table('message')->where(['username' => $user->username, 'plan_status' => $request->status])->select('message', 'amount', 'oldbal', 'newbal', 'habukhan_date as Habukhan_date', 'habukhan_date as adex_date', 'transid', 'plan_status', 'role', 'phone_account')->orderBy('id', 'desc')->paginate($request->limit)
                         ]);
                     }
                 }
@@ -678,6 +729,59 @@ class Trans extends Controller
                     else {
                         return response()->json([
                             'result_trans' => DB::table('exam')->where(['username' => $user->username, 'plan_status' => $request->status])->orderBy('id', 'desc')->paginate($request->limit)
+                        ]);
+                    }
+                }
+            }
+            else {
+                return response()->json([
+                    'status' => 403,
+                    'message' => 'Access Denail'
+                ])->setStatusCode(403);
+            }
+        }
+
+        else {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Access Denail'
+            ])->setStatusCode(403);
+        }
+    }
+
+    public function AllJambHistoryUser(Request $request)
+    {
+        $explode_url = explode(',', config('app.habukhan_app_key'));
+        if (!$request->headers->get('origin') || in_array($request->headers->get('origin'), $explode_url)) {
+            if (DB::table('user')->where(['id' => $this->verifytoken($request->id), 'status' => 1])->count() == 1) {
+                $user = DB::table('user')->where(['id' => $this->verifytoken($request->id), 'status' => 1])->first();
+                $search = strtolower($request->search);
+
+                if (!empty($search)) {
+                    if ($request->status == 'ALL') {
+                        return response()->json([
+                            'jamb_trans' => DB::table('jamb_purchases')->where('username', $user->username)->Where(function ($query) use ($search) {
+                            $query->orWhere('profile_id', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%")->orWhere('variation_name', 'LIKE', "%$search%")->orWhere('phone', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('purchased_code', 'LIKE', "%$search%")->orWhere('amount', 'LIKE', "%$search%");
+                        })->orderBy('id', 'desc')->paginate($request->limit)
+                        ]);
+                    }
+                    else {
+                        return response()->json([
+                            'jamb_trans' => DB::table('jamb_purchases')->where(['username' => $user->username, 'plan_status' => $request->status])->Where(function ($query) use ($search) {
+                            $query->orWhere('profile_id', 'LIKE', "%$search%")->orWhere('customer_name', 'LIKE', "%$search%")->orWhere('variation_name', 'LIKE', "%$search%")->orWhere('phone', 'LIKE', "%$search%")->orWhere('transid', 'LIKE', "%$search%")->orWhere('purchased_code', 'LIKE', "%$search%")->orWhere('amount', 'LIKE', "%$search%");
+                        })->orderBy('id', 'desc')->paginate($request->limit)
+                        ]);
+                    }
+                }
+                else {
+                    if ($request->status == 'ALL') {
+                        return response()->json([
+                            'jamb_trans' => DB::table('jamb_purchases')->where('username', $user->username)->orderBy('id', 'desc')->paginate($request->limit)
+                        ]);
+                    }
+                    else {
+                        return response()->json([
+                            'jamb_trans' => DB::table('jamb_purchases')->where(['username' => $user->username, 'plan_status' => $request->status])->orderBy('id', 'desc')->paginate($request->limit)
                         ]);
                     }
                 }
