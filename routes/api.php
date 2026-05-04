@@ -76,6 +76,7 @@ Route::post('profile/statement', [ProfileController::class, 'generateStatement']
 Route::post('profile/update-theme', [ProfileController::class, 'updateTheme'])->middleware('auth.token');
 Route::post('user/webhook/secure', [ProfileController::class, 'updateWebhook'])->middleware('auth.token');
 Route::post('user/reset/apikey/secure', [ProfileController::class, 'resetApiKey'])->middleware('auth.token');
+Route::post('user/statistics/{id}/secure', [AppController::class, 'userStatistics']);
 
 // Customer Creation (Phase 3)
 Route::post('/user/customer/create', [AuthController::class, 'createCustomer'])->middleware(['auth.token']);
